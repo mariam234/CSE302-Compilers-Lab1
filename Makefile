@@ -1,5 +1,5 @@
-ANTLR4_JAR := /home/kaustuv/build/antlr-4.7.2-complete.jar
-ANTLR4_RUNTIME_JAR := /home/kaustuv/build/antlr-runtime-4.7.2.jar
+ANTLR4_JAR := /Users/mariamdiallo/cse302-compilers/jars/antlr-4.7.2-complete.jar
+ANTLR4_RUNTIME_JAR := /Users/mariamdiallo/cse302-compilers/jars/antlr-runtime-4.7.2.jar
 
 CLASSPATH := .:$(ANTLR4_JAR):$(ANTLR4_RUNTIME_JAR):
 
