@@ -44,23 +44,24 @@ public class Main {
     if (instruction instanceof Ast.Target.Instr.MoveImm) {
       Ast.Target.Instr.MoveImm instr = (Ast.Target.Instr.MoveImm) instruction;
       return String.format("%s = %d;", instr.dest.toString(), instr.imm);
+    } else if (instruction instanceof Ast.Target.Instr.MoveCp) {
+      Ast.Target.Instr.MoveCp instr = (Ast.Target.Instr.MoveCp) instruction;
+      return String.format("%s = %s;", instr.dest.toString(), instr.source.toString());
+    } else if (instruction instanceof Ast.Target.Instr.MoveBinop) {
+      Ast.Target.Instr.MoveBinop instr = (Ast.Target.Instr.MoveBinop) instruction;
+      return String.format("%s = %s %s %s;", instr.dest.toString(),
+        instr.leftArg.toString(), instr.rightArg.toString(), instr.op.toString());
+    } else if (instruction instanceof Ast.Target.Instr.MoveUnop) {
+      Ast.Target.Instr.MoveUnop instr = (Ast.Target.Instr.MoveUnop) instruction;
+      return String.format("%s = %s %s;", instr.dest.toString(),
+        instr.op.toString(), instr.arg.toString());
+    } else if (instruction instanceof Ast.Target.Instr.Print) {
+      Ast.Target.Instr.Print instr = (Ast.Target.Instr.Print) instruction;
+      return String.format("print %s;", instr.dest.toString());
+    } else if (instruction instanceof Ast.Target.Instr.Comment) {
+      Ast.Target.Instr.Comment instr = (Ast.Target.Instr.Comment) instruction;
+      return String.format("// %s", instr.comment);
     }
     return "";
-      // case Ast.Target.Instr.MoveCp:
-      //   Ast.Target.Instr.MoveImm moveCp = instr;
-      //   return String.format("%s = %s;", moveCp.dest.toString(), moveCp.source.toString());
-      // case Ast.Target.Instr.MoveBinop:
-      //   Ast.Target.Instr.MoveBinop moveBinop = instr;
-      //   return String.format("%s = %s %s %s;", moveBinop.dest.toString(),
-      //     moveBinop.leftArg.toString(), moveBinop.rightArg.toString(), moveBinop.op.toString());
-      // case Ast.Target.Instr.MoveUnop:
-      //   Ast.Target.Instr.MoveUnop moveUnop = instr;
-      //   return String.format("%s = %s %s;", moveUnop.dest.toString(), moveUnop.op.toString(), moveUnop.arg.toString());
-      // case Ast.Target.Instr.Print:
-      //   Ast.Target.Instr.Print print = instr;
-      //   return String.format("print %s;", print.dest.toString());
-      // case Ast.Target.Instr.Comment:
-      //   Ast.Target.Instr.Comment comment = instr;
-      //   return String.format("// %s", comment.comment);
   }
 }
