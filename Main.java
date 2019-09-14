@@ -32,7 +32,6 @@ public class Main {
       if (! bxFile.endsWith(".bx"))
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
       Ast.Source.Prog progSource = Ast.Source.readProgram(bxFile);
-      // System.out.print(progSource.toString());
       for (Ast.Source.Stmt stmt : progSource.statements) {
         generateInstructions(stmt);
       }
@@ -50,7 +49,6 @@ public class Main {
           out.print(String.format(" x%d,", i));
         }
       }
-      // TODO - check for null ?
       for (Ast.Target.Instr instr : progTarget.instructions) {
         out.println("\t" + instrToString(instr));
       }
@@ -67,10 +65,8 @@ public class Main {
     if (stmt instanceof Ast.Source.Stmt.Move) {
       Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
       dests.put(move.dest.var, genInstrsFromExpr(move.source));
-      // System.out.println(move.dest.var + " added");
     } else if (stmt instanceof Ast.Source.Stmt.Print) {
       Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
-      // TODO - have to check for null?
       instrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
     }
   }
@@ -84,11 +80,6 @@ public class Main {
       instrs.add(new Ast.Target.Instr.MoveImm(dest, imm.value));
     } else if (expr instanceof Ast.Source.Expr.Read) {
       Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
-      // if (dests.containsKey(read.dest.var)) {
-      //   System.out.println(read.dest.var + " found");
-      // } else {
-      //   System.out.println(read.dest.var + " NOT found");
-      // }
       dest = dests.get(read.dest.var);
     } else if (expr instanceof Ast.Source.Expr.UnopApp) {
       Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
@@ -106,7 +97,6 @@ public class Main {
     return dest;
   }
 
-// !!!! TODO - allowed to change ast??
   private static String instrToString(Ast.Target.Instr instruction) {
     if (instruction instanceof Ast.Target.Instr.MoveImm) {
       Ast.Target.Instr.MoveImm instr = (Ast.Target.Instr.MoveImm) instruction;
@@ -124,7 +114,7 @@ public class Main {
         unopMap.get(instr.op), instr.arg.loc);
     } else if (instruction instanceof Ast.Target.Instr.Print) {
       Ast.Target.Instr.Print instr = (Ast.Target.Instr.Print) instruction;
-      return String.format("print x%d;", instr.dest.loc);
+      return String.format("PRINT(x%d);", instr.dest.loc);
     } else if (instruction instanceof Ast.Target.Instr.Comment) {
       Ast.Target.Instr.Comment instr = (Ast.Target.Instr.Comment) instruction;
       return String.format("// %s", instr.comment);
