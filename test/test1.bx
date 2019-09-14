@@ -1,3 +1,7 @@
-x = 20;
-y = (x + 42) * (x - 42);
-print y;
+b = 5;
+u = b * b;
+a = 1;
+c = 2;
+v = 4 * a * c;
+w = u - v;
+print w;
