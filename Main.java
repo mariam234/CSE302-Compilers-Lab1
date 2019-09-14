@@ -1,9 +1,7 @@
 import java.io.*;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.HashMap;
-import java.util.Set;
-import java.util.SortedSet;
+import java.util.List;
 
 public class Main {
   private static int idCounter = 0;
@@ -25,9 +23,18 @@ public class Main {
       PrintStream out = new PrintStream(cFile);
       out.println("#include \"bx0.h\"");
       out.println("int main(){");
+      out.print("\tint64_t ");
+      for (int i = 0; i < idCounter; i++) {
+        if (i == idCounter - 1) {
+          out.println(String.format(" x%d;", i));
+        } else {
+          out.print(String.format(" x%d,", i));
+        }
+      }
       for (Ast.Target.Instr instr : progTarget.instructions) {
         out.println("\t" + getLine(instr));
       }
+      out.println("\treturn 0;");
       out.println("}");
       out.close();
       String gccCmd = String.format("gcc -o %s.exe %s", stem, cFile);
@@ -42,7 +49,7 @@ public class Main {
       dests.put(move.dest, genInstrsFromExpr(move.source));
     } else if (stmt instanceof Ast.Source.Stmt.Print) {
       Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
-      // TODO - check for null ?
+      // TODO - have to check for null?
       instrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
     }
   }
