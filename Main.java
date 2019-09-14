@@ -1,8 +1,13 @@
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class Main {
+  private static int counter = 0;
+  private static SortedSet variables = new TreeSet();
+
   public static void main(String[] args) throws Exception {
     for (String bxFile : args) {
       if (! bxFile.endsWith(".bx"))
@@ -27,19 +32,22 @@ public class Main {
     }
   }
 
+// !!! TODO - Can print expressions or just vars
   public static List<Ast.Target.Instr> getInstructions(List<Ast.Source.Stmt> stmts) {
-    // if (stmts.isEmpty()) {
-    //   return new ArrayList<>;
-    // }
-    // if (stmts.get(0) instanceOf Ast.Source.Stmt.Move) {
-    //   Ast.Source.Stmt.Move move = stmts.get(0);
-    //
-    // } else {
-    //
-    // }
-    return new ArrayList<Ast.Target.Instr>();
+    if (stmts.isEmpty()) {
+      return new ArrayList<>;
+    }
+    Ast.Source.Stmt stmt = stmts.get(0);
+    if (stmt instanceof Ast.Source.Stmt.Move) {
+      Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
+
+    } else if (stmt instanceof Ast.Source.Stmt.Print) {
+      Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
+    }
+
   }
 
+// !!!! TODO - allowed to change ast??
   public static String getLine(Ast.Target.Instr instruction) {
     if (instruction instanceof Ast.Target.Instr.MoveImm) {
       Ast.Target.Instr.MoveImm instr = (Ast.Target.Instr.MoveImm) instruction;
