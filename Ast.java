@@ -21,10 +21,36 @@ public abstract class Ast {
     public static enum Binop {
       Add, Subtract, Multiply, Divide, Modulus,
       BitAnd, BitOr, BitXor, Lshift, Rshift;
+
+      @Override
+      public String toString() {
+        switch(this) {
+          case Add: return "+";
+          case Subtract: return "-";
+          case Multiply: return "*";
+          case Divide: return "/";
+          case Modulus: return "%";
+          case BitAnd: return "&";
+          case BitOr: return "|";
+          case BitXor: return  "^";
+          case Lshift: return "<<";
+          case Rshift: return ">>";
+          default: throw new IllegalArgumentException();
+        }
+      }
     }
 
     public static enum Unop {
       Negate, BitNot;
+
+      @Override
+      public String toString() {
+        switch(this) {
+          case Negate: return "-";
+          case BitNot: return "~";
+          default: throw new IllegalArgumentException();
+        }
+      }
     }
 
     public static abstract class Expr {
@@ -234,6 +260,10 @@ public abstract class Ast {
           this.dest = dest;
           this.imm = imm;
         }
+        @Override
+        public String toString() {
+          return String.format("x%d = %d;", this.dest.loc, this.imm);
+        }
       }
 
       public static class MoveCp extends Instr {
@@ -241,6 +271,10 @@ public abstract class Ast {
         public MoveCp(Dest dest, Dest source) {
           this.dest = dest;
           this.source = source;
+        }
+        @Override
+        public String toString() {
+          return String.format("x%d = x%d;", this.dest.loc, this.source.loc);
         }
       }
 
@@ -254,6 +288,11 @@ public abstract class Ast {
           this.rightArg = rightArg;
           this.op = op;
         }
+        @Override
+        public String toString() {
+          return String.format("x%d = x%d %s x%d;", this.dest.loc,
+            this.leftArg.loc, this.op.toString(), this.rightArg.loc);
+        }
       }
 
       public static class MoveUnop extends Instr {
@@ -265,12 +304,21 @@ public abstract class Ast {
           this.arg = arg;
           this.op = op;
         }
+        @Override
+        public String toString() {
+          return String.format("x%d = %s x%d;", this.dest.loc,
+            this.op.toString(), this.arg.loc);
+        }
       }
 
       public static class Print extends Instr {
         public final Dest dest;
         public Print(Dest dest) {
           this.dest = dest;
+        }
+        @Override
+        public String toString() {
+          return String.format("PRINT(x%d);", this.dest.loc);
         }
       }
 
@@ -280,6 +328,10 @@ public abstract class Ast {
         public final String comment;
         public Comment(String comment) {
           this.comment = comment;
+        }
+        @Override
+        public String toString() {
+          return String.format("// %s", this.comment);
         }
       }
     } // Instr

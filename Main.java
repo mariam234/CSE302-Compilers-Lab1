@@ -2,27 +2,8 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Main {
-  private static final Map<Ast.Source.Unop, String> mUnopMap = Map.of(
-    Ast.Source.Unop.Negate, "-",
-    Ast.Source.Unop.BitNot, "~"
-  );
-
-  private static final Map<Ast.Source.Binop, String> mBinopMap = Map.of(
-    Ast.Source.Binop.Add, "+",
-    Ast.Source.Binop.Subtract, "-",
-    Ast.Source.Binop.Multiply, "*",
-    Ast.Source.Binop.Divide, "/",
-    Ast.Source.Binop.Modulus, "%",
-    Ast.Source.Binop.BitAnd, "&",
-    Ast.Source.Binop.BitOr, "|",
-    Ast.Source.Binop.BitXor, "^",
-    Ast.Source.Binop.Lshift, "<<",
-    Ast.Source.Binop.Rshift, ">>"
-  );
-
   private static int mVarCounter = 0;
   private static HashMap<String, Ast.Target.Dest> mVars = new HashMap<>();
   private static List<Ast.Target.Instr> mInstrs = new ArrayList<>();
@@ -50,7 +31,7 @@ public class Main {
         }
       }
       for (Ast.Target.Instr instr : progTarget.instructions) {
-        out.println("\t" + instrToString(instr));
+        out.println("\t" + instr.toString());
       }
       out.println("\n\treturn 0;");
       out.println("}");
@@ -95,30 +76,5 @@ public class Main {
         dest, leftDest, binopApp.op, rightDest));
     }
     return dest;
-  }
-
-  private static String instrToString(Ast.Target.Instr instr) {
-    if (instr instanceof Ast.Target.Instr.MoveImm) {
-      Ast.Target.Instr.MoveImm moveimm = (Ast.Target.Instr.MoveImm) instr;
-      return String.format("x%d = %d;", moveimm.dest.loc, moveimm.imm);
-    } else if (instr instanceof Ast.Target.Instr.MoveCp) {
-      Ast.Target.Instr.MoveCp moveCp = (Ast.Target.Instr.MoveCp) instr;
-      return String.format("x%d = x%d;", moveCp.dest.loc, moveCp.source.loc);
-    } else if (instr instanceof Ast.Target.Instr.MoveBinop) {
-      Ast.Target.Instr.MoveBinop moveBinop = (Ast.Target.Instr.MoveBinop) instr;
-      return String.format("x%d = x%d %s x%d;", moveBinop.dest.loc,
-        moveBinop.leftArg.loc, mBinopMap.get(moveBinop.op), moveBinop.rightArg.loc);
-    } else if (instr instanceof Ast.Target.Instr.MoveUnop) {
-      Ast.Target.Instr.MoveUnop moveUnop = (Ast.Target.Instr.MoveUnop) instr;
-      return String.format("x%d = %s x%d;", moveUnop.dest.loc,
-        mUnopMap.get(moveUnop.op), moveUnop.arg.loc);
-    } else if (instr instanceof Ast.Target.Instr.Print) {
-      Ast.Target.Instr.Print print = (Ast.Target.Instr.Print) instr;
-      return String.format("PRINT(x%d);", print.dest.loc);
-    } else if (instr instanceof Ast.Target.Instr.Comment) {
-      Ast.Target.Instr.Comment comment = (Ast.Target.Instr.Comment) instr;
-      return String.format("// %s", comment.comment);
-    }
-    return null;
   }
 }
