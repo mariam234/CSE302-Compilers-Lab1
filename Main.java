@@ -31,7 +31,7 @@ public class Main {
         }
       }
       for (Ast.Target.Instr instr : progTarget.instructions) {
-        out.println("\t" + instr.toString());
+        out.println("\t" + instr.toC());
       }
       out.println("\n\treturn 0;");
       out.println("}");
