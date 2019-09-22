@@ -23,11 +23,11 @@ public class Main {
       out.println("main:");
       out.println("\tpushq %rbp:");
       out.println("\tpushq %rsp, %rbp");
-      out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));
+      out.println(String.format("\tsubq $%d, %%rsp\n", (mVarCounter + 1) * 8));
       for (Ast.Target.Instr instr : progTarget.instructions) {
         out.println("\t" + instr.toAmd64());
       }
-      out.println("\n\tmovq %rbp, %rsp");
+      out.println("\tmovq %rbp, %rsp");
       out.println("\tpopq %rbp");
       out.println("\tmovq $0, %rax");
       out.println("\tretq");

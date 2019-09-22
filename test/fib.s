@@ -4,31 +4,72 @@
 main:
 	pushq %rbp:
 	pushq %rsp, %rbp
-	subq $96, %rsp
+	subq $104, %rsp
 
-	int64_t	x0 = 0;
-	x1 = 1;
-	PRINT(x0);
-	x2 = x1 + x0;
-	PRINT(x1);
-	x3 = x2 + x1;
-	PRINT(x2);
-	x4 = x3 + x2;
-	PRINT(x3);
-	x5 = x4 + x3;
-	PRINT(x4);
-	x6 = x5 + x4;
-	PRINT(x5);
-	x7 = x6 + x5;
-	PRINT(x6);
-	x8 = x7 + x6;
-	PRINT(x7);
-	x9 = x8 + x7;
-	PRINT(x8);
-	x10 = x9 + x8;
-	PRINT(x9);
-	x11 = x10 + x9;
-	PRINT(x10);
+	movq $0, (%rsp)
+	movq $1, 8(%rsp)
+	movq (%rsp), %rdi
+	callq bx0_print
+
+	movq 8(%rsp), %r11
+	addq (%rsp), %r11
+	movq %r11, 16(%rsp)
+	movq 8(%rsp), %rdi
+	callq bx0_print
+
+	movq 16(%rsp), %r11
+	addq 8(%rsp), %r11
+	movq %r11, 24(%rsp)
+	movq 16(%rsp), %rdi
+	callq bx0_print
+
+	movq 24(%rsp), %r11
+	addq 16(%rsp), %r11
+	movq %r11, 32(%rsp)
+	movq 24(%rsp), %rdi
+	callq bx0_print
+
+	movq 32(%rsp), %r11
+	addq 24(%rsp), %r11
+	movq %r11, 40(%rsp)
+	movq 32(%rsp), %rdi
+	callq bx0_print
+
+	movq 40(%rsp), %r11
+	addq 32(%rsp), %r11
+	movq %r11, 48(%rsp)
+	movq 40(%rsp), %rdi
+	callq bx0_print
+
+	movq 48(%rsp), %r11
+	addq 40(%rsp), %r11
+	movq %r11, 56(%rsp)
+	movq 48(%rsp), %rdi
+	callq bx0_print
+
+	movq 56(%rsp), %r11
+	addq 48(%rsp), %r11
+	movq %r11, 64(%rsp)
+	movq 56(%rsp), %rdi
+	callq bx0_print
+
+	movq 64(%rsp), %r11
+	addq 56(%rsp), %r11
+	movq %r11, 72(%rsp)
+	movq 64(%rsp), %rdi
+	callq bx0_print
+
+	movq 72(%rsp), %r11
+	addq 64(%rsp), %r11
+	movq %r11, 80(%rsp)
+	movq 72(%rsp), %rdi
+	callq bx0_print
+
+	movq 80(%rsp), %r11
+	addq 72(%rsp), %r11
+	movq %r11, 88(%rsp)
+	movq 80(%rsp), %rdi
+	callq bx0_print
 
 	movq %rbp, %rsp
 	popq %rbp

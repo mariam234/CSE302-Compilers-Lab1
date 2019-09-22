@@ -25,16 +25,16 @@ public abstract class Ast {
       @Override
       public String toString() {
         switch(this) {
-          case Add: return "+";
-          case Subtract: return "-";
-          case Multiply: return "*";
-          case Divide: return "/";
-          case Modulus: return "%";
-          case BitAnd: return "&";
-          case BitOr: return "|";
-          case BitXor: return  "^";
-          case Lshift: return "<<";
-          case Rshift: return ">>";
+          case Add: return "addq";
+          case Subtract: return "subq";
+          case Multiply: return "imulq";
+          case Divide: return "idivq";
+          case Modulus: return "imodq";
+          case BitAnd: return "andq";
+          case BitOr: return "orq";
+          case BitXor: return  "xorq";
+          case Lshift: return "salq";
+          case Rshift: return "sarq";
           default: throw new IllegalArgumentException();
         }
       }
@@ -46,8 +46,8 @@ public abstract class Ast {
       @Override
       public String toString() {
         switch(this) {
-          case Negate: return "-";
-          case BitNot: return "~";
+          case Negate: return "negq";
+          case BitNot: return "notq";
           default: throw new IllegalArgumentException();
         }
       }
@@ -262,8 +262,9 @@ public abstract class Ast {
           this.dest = dest;
           this.imm = imm;
         }
+        // how to deal w imm > 32 bits ?
         public String toAmd64() {
-          return String.format("x%d = %d;", this.dest.loc, this.imm);
+          return String.format("movq $%d, %s", this.imm, getStackSlot(dest));
         }
       }
 
@@ -274,13 +275,13 @@ public abstract class Ast {
           this.source = source;
         }
         public String toAmd64() {
-          return String.format("x%d = x%d;", this.dest.loc, this.source.loc);
+          return String.format("movq %s, %%r11\n\tmovq %%r11, %s",
+            getStackSlot(source), getStackSlot(dest));
         }
       }
 
       public static class MoveBinop extends Instr {
-        public final Dest dest;
-        public final Dest leftArg, rightArg;
+        public final Dest dest, leftArg, rightArg;
         public final Ast.Source.Binop op;
         public MoveBinop(Dest dest, Dest leftArg, Ast.Source.Binop op, Dest rightArg) {
           this.dest = dest;
@@ -289,14 +290,13 @@ public abstract class Ast {
           this.op = op;
         }
         public String toAmd64() {
-          return String.format("x%d = x%d %s x%d;", this.dest.loc,
-            this.leftArg.loc, this.op.toString(), this.rightArg.loc);
+          return String.format("movq %s, %%r11\n\taddq %s, %%r11\n\tmovq %%r11, %s",
+            getStackSlot(leftArg), getStackSlot(rightArg), getStackSlot(dest));
         }
       }
 
       public static class MoveUnop extends Instr {
-        public final Dest dest;
-        public final Dest arg;
+        public final Dest dest, arg;
         public final Ast.Source.Unop op;
         public MoveUnop(Dest dest, Ast.Source.Unop op, Dest arg) {
           this.dest = dest;
@@ -304,8 +304,8 @@ public abstract class Ast {
           this.op = op;
         }
         public String toAmd64() {
-          return String.format("x%d = %s x%d;", this.dest.loc,
-            this.op.toString(), this.arg.loc);
+          return String.format("movq $s %%r11\n\t%s %%r11\n\tmovq %%r11 %s",
+            getStackSlot(arg), op.toString(), getStackSlot(dest));
         }
       }
 
@@ -315,7 +315,8 @@ public abstract class Ast {
           this.dest = dest;
         }
         public String toAmd64() {
-          return String.format("PRINT(x%d);", this.dest.loc);
+          return String.format("movq %s, %%rdi\n\tcallq bx0_print\n",
+            getStackSlot(dest));
         }
       }
 
@@ -327,7 +328,7 @@ public abstract class Ast {
           this.comment = comment;
         }
         public String toAmd64() {
-          return String.format("// %s", this.comment);
+          return String.format("# %s", this.comment);
         }
       }
     } // Instr
@@ -337,6 +338,10 @@ public abstract class Ast {
       public Prog(List<Instr> instructions) {
         this.instructions = instructions;
       }
+    }
+
+    private static String getStackSlot(Dest dest) {
+      return dest.loc == 0 ? "(%rsp)" : (dest.loc * 8) + "(%rsp)";
     }
   }
 }
