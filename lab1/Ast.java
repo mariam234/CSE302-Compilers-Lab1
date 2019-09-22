@@ -253,7 +253,7 @@ public abstract class Ast {
     }
 
     public static abstract class Instr {
-      public abstract String toAmd64();
+      public abstract String toC();
 
       public static class MoveImm extends Instr {
         public final Dest dest;
@@ -262,7 +262,7 @@ public abstract class Ast {
           this.dest = dest;
           this.imm = imm;
         }
-        public String toAmd64() {
+        public String toC() {
           return String.format("x%d = %d;", this.dest.loc, this.imm);
         }
       }
@@ -273,7 +273,7 @@ public abstract class Ast {
           this.dest = dest;
           this.source = source;
         }
-        public String toAmd64() {
+        public String toC() {
           return String.format("x%d = x%d;", this.dest.loc, this.source.loc);
         }
       }
@@ -288,7 +288,7 @@ public abstract class Ast {
           this.rightArg = rightArg;
           this.op = op;
         }
-        public String toAmd64() {
+        public String toC() {
           return String.format("x%d = x%d %s x%d;", this.dest.loc,
             this.leftArg.loc, this.op.toString(), this.rightArg.loc);
         }
@@ -303,7 +303,7 @@ public abstract class Ast {
           this.arg = arg;
           this.op = op;
         }
-        public String toAmd64() {
+        public String toC() {
           return String.format("x%d = %s x%d;", this.dest.loc,
             this.op.toString(), this.arg.loc);
         }
@@ -314,7 +314,7 @@ public abstract class Ast {
         public Print(Dest dest) {
           this.dest = dest;
         }
-        public String toAmd64() {
+        public String toC() {
           return String.format("PRINT(x%d);", this.dest.loc);
         }
       }
@@ -326,7 +326,7 @@ public abstract class Ast {
         public Comment(String comment) {
           this.comment = comment;
         }
-        public String toAmd64() {
+        public String toC() {
           return String.format("// %s", this.comment);
         }
       }

@@ -12,41 +12,43 @@ public class Main {
     for (String bxFile : args) {
       if (! bxFile.endsWith(".bx"))
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
-      generateInstructions(Ast.Source.readProgram(bxFile));
+      Ast.Source.Prog progSource = Ast.Source.readProgram(bxFile);
+      for (Ast.Source.Stmt stmt : progSource.statements) {
+        generateInstructions(stmt);
+      }
       Ast.Target.Prog progTarget = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);
-      String amd64File = stem + ".s";
-      PrintStream out = new PrintStream(amd64File);
-      out.println(String.format("\t.file \"%s\"", bxFile));
-      out.println("\t.section .text");
-      out.println("\t.globl main");
-      out.println("main:");
-      out.println("\tpushq %rbp:");
-      out.println("\tpushq %rsp, %rbp");
-      out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));
-      for (Ast.Target.Instr instr : progTarget.instructions) {
-        out.println("\t" + instr.toAmd64());
+      String cFile = stem + ".c";
+      PrintStream out = new PrintStream(cFile);
+      out.println("#include \"bx0.h\"");
+      out.println("int main(){");
+      out.print("\tint64_t");
+      for (int i = 0; i < mVarCounter; i++) {
+        if (i == mVarCounter - 1) {
+          out.print(String.format(" x%d;\n\n", i));
+        } else {
+          out.print(String.format(" x%d,", i));
+        }
       }
-      out.println("\n\tmovq %rbp, %rsp");
-      out.println("\tpopq %rbp");
-      out.println("\tmovq $0, %rax");
-      out.println("\tretq");
+      for (Ast.Target.Instr instr : progTarget.instructions) {
+        out.println("\t" + instr.toC());
+      }
+      out.println("\n\treturn 0;");
+      out.println("}");
       out.close();
-      String gccCmd = String.format("gcc -o %s.exe %s", stem, amd64File);
+      String gccCmd = String.format("gcc -o %s.exe %s", stem, cFile);
       Process gccProc = Runtime.getRuntime().exec(gccCmd);
       gccProc.waitFor();
     }
   }
 
-  private static void generateInstructions(Ast.Source.Prog progSource) {
-    for (Ast.Source.Stmt stmt : progSource.statements) {
-      if (stmt instanceof Ast.Source.Stmt.Move) {
-        Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
-        mVars.put(move.dest.var, genInstrsFromExpr(move.source));
-      } else if (stmt instanceof Ast.Source.Stmt.Print) {
-        Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
-        mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      }
+  private static void generateInstructions(Ast.Source.Stmt stmt) {
+    if (stmt instanceof Ast.Source.Stmt.Move) {
+      Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
+      mVars.put(move.dest.var, genInstrsFromExpr(move.source));
+    } else if (stmt instanceof Ast.Source.Stmt.Print) {
+      Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
+      mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
     }
   }
 
