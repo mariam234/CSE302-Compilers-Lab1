@@ -263,6 +263,7 @@ public abstract class Ast {
           this.imm = imm;
         }
         // how to deal w imm > 32 bits ?
+        @Override
         public String toAmd64() {
           return String.format("movq $%d, %s", this.imm, getStackSlot(dest));
         }
@@ -274,6 +275,7 @@ public abstract class Ast {
           this.dest = dest;
           this.source = source;
         }
+        @Override
         public String toAmd64() {
           return String.format("movq %s, %%r11\n\tmovq %%r11, %s",
             getStackSlot(source), getStackSlot(dest));
@@ -289,9 +291,31 @@ public abstract class Ast {
           this.rightArg = rightArg;
           this.op = op;
         }
+        @Override
         public String toAmd64() {
-          return String.format("movq %s, %%r11\n\taddq %s, %%r11\n\tmovq %%r11, %s",
-            getStackSlot(leftArg), getStackSlot(rightArg), getStackSlot(dest));
+          switch (op) {
+            case Add:
+            case Subtract:
+            case BitAnd:
+            case BitOr:
+            case BitXor:
+              return String.format("movq %s, %%r11\n\t%s %s, %%r11\n\tmovq %%r11, %s",
+                getStackSlot(leftArg), op.toString(), getStackSlot(rightArg),
+                getStackSlot(dest));
+            case Multiply:
+            case Divide:
+            case Modulus:
+            // how to deal with half being in rdx, half in rax for mult?
+              return String.format("movq %s, %%rax\n\t%s %s\n\tmovq %%rax, %s",
+                getStackSlot(leftArg), op.toString(), getStackSlot(rightArg),
+                getStackSlot(dest));
+            case Lshift:
+            case Rshift:
+              return String.format("movq %s, %%cl\n\tmovq %s, %%r11\n\t%s %%cl%%r11\n\tmovq %%r11, %s",
+                getStackSlot(rightArg), getStackSlot(leftArg), op.toString(),
+                getStackSlot(dest));
+            default: throw new IllegalArgumentException();
+          }
         }
       }
 
@@ -303,6 +327,7 @@ public abstract class Ast {
           this.arg = arg;
           this.op = op;
         }
+        @Override
         public String toAmd64() {
           return String.format("movq $s %%r11\n\t%s %%r11\n\tmovq %%r11 %s",
             getStackSlot(arg), op.toString(), getStackSlot(dest));
@@ -314,8 +339,9 @@ public abstract class Ast {
         public Print(Dest dest) {
           this.dest = dest;
         }
+        @Override
         public String toAmd64() {
-          return String.format("movq %s, %%rdi\n\tcallq bx0_print\n",
+          return String.format("movq %s, %%rdi\n\tcallq _bx0_print\n",
             getStackSlot(dest));
         }
       }
@@ -327,6 +353,7 @@ public abstract class Ast {
         public Comment(String comment) {
           this.comment = comment;
         }
+        @Override
         public String toAmd64() {
           return String.format("# %s", this.comment);
         }

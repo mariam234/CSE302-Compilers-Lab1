@@ -18,11 +18,11 @@ public class Main {
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
       out.println(String.format("\t.file \"%s\"", bxFile));
-      out.println("\t.section .text");
-      out.println("\t.globl main");
-      out.println("main:");
-      out.println("\tpushq %rbp:");
-      out.println("\tpushq %rsp, %rbp");
+      // section or no section ? linux vs os?
+      out.println("\t.text");
+      out.println("\t.globl _main");
+      out.println("_main:");
+      out.println("\tpushq %rbp");
       out.println(String.format("\tsubq $%d, %%rsp\n", (mVarCounter + 1) * 8));
       for (Ast.Target.Instr instr : progTarget.instructions) {
         out.println("\t" + instr.toAmd64());
@@ -32,7 +32,7 @@ public class Main {
       out.println("\tmovq $0, %rax");
       out.println("\tretq");
       out.close();
-      String gccCmd = String.format("gcc -o %s.exe %s", stem, amd64File);
+      String gccCmd = String.format("gcc -no-pie -o %s.exe %s bx0rt.c", stem, amd64File);
       Process gccProc = Runtime.getRuntime().exec(gccCmd);
       gccProc.waitFor();
     }
