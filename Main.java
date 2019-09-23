@@ -18,12 +18,12 @@ public class Main {
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
       out.println(String.format("\t.file \"%s\"", bxFile));
-      // section or no section ? linux vs os?
       out.println("\t.text");
       out.println("\t.globl _main");
       out.println("_main:");
       out.println("\tpushq %rbp");
-      out.println(String.format("\tsubq $%d, %%rsp\n", (mVarCounter + 1) * 8));
+      out.println("\tmovq %rsp, %rbp");
+      out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));
       for (Ast.Target.Instr instr : progTarget.instructions) {
         out.println("\t" + instr.toAmd64());
       }

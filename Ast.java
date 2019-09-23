@@ -262,7 +262,6 @@ public abstract class Ast {
           this.dest = dest;
           this.imm = imm;
         }
-        // how to deal w imm > 32 bits ?
         @Override
         public String toAmd64() {
           return String.format("movq $%d, %s", this.imm, getStackSlot(dest));
@@ -305,7 +304,6 @@ public abstract class Ast {
             case Multiply:
             case Divide:
             case Modulus:
-            // how to deal with half being in rdx, half in rax for mult?
               return String.format("movq %s, %%rax\n\t%s %s\n\tmovq %%rax, %s",
                 getStackSlot(leftArg), op.toString(), getStackSlot(rightArg),
                 getStackSlot(dest));
@@ -329,7 +327,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format("movq $s %%r11\n\t%s %%r11\n\tmovq %%r11 %s",
+          return String.format("movq %s, %%r11\n\t%s %%r11\n\tmovq %%r11, %s",
             getStackSlot(arg), op.toString(), getStackSlot(dest));
         }
       }
