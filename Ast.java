@@ -22,14 +22,13 @@ public abstract class Ast {
       Add, Subtract, Multiply, Divide, Modulus,
       BitAnd, BitOr, BitXor, Lshift, Rshift;
 
-      @Override
-      public String toString() {
+      public String getInstr() {
         switch(this) {
           case Add: return "addq";
           case Subtract: return "subq";
           case Multiply: return "imulq";
-          case Divide: return "idivq";
-          case Modulus: return "imodq";
+          case Divide:
+          case Modulus: return "idivq";
           case BitAnd: return "andq";
           case BitOr: return "orq";
           case BitXor: return  "xorq";
@@ -43,8 +42,7 @@ public abstract class Ast {
     public static enum Unop {
       Negate, BitNot;
 
-      @Override
-      public String toString() {
+      public String getInstr() {
         switch(this) {
           case Negate: return "negq";
           case BitNot: return "notq";
@@ -299,18 +297,21 @@ public abstract class Ast {
             case BitOr:
             case BitXor:
               return String.format("movq %s, %%r11\n\t%s %s, %%r11\n\tmovq %%r11, %s",
-                getStackSlot(leftArg), op.toString(), getStackSlot(rightArg),
+                getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
                 getStackSlot(dest));
             case Multiply:
+              return String.format("movq %s, %%rax\n\t%s %s\n\tmovq %%rax, %s",
+                getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
+                getStackSlot(dest));
             case Divide:
             case Modulus:
-              return String.format("movq %s, %%rax\n\t%s %s\n\tmovq %%rax, %s",
-                getStackSlot(leftArg), op.toString(), getStackSlot(rightArg),
-                getStackSlot(dest));
+              return String.format("movq %s, %%rax\n\tcqto\n\t%s %s\n\tmovq %s, %s",
+                getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
+                op == Ast.Source.Binop.Divide ? "%rax" : "%rdx", getStackSlot(dest));
             case Lshift:
             case Rshift:
-              return String.format("movq %s, %%cl\n\tmovq %s, %%r11\n\t%s %%cl%%r11\n\tmovq %%r11, %s",
-                getStackSlot(rightArg), getStackSlot(leftArg), op.toString(),
+              return String.format("movb %s, %%cl\n\tmovq %s, %%r11\n\t%s %%cl, %%r11\n\tmovq %%r11, %s",
+                getStackSlot(rightArg), getStackSlot(leftArg), op.getInstr(),
                 getStackSlot(dest));
             default: throw new IllegalArgumentException();
           }
@@ -328,7 +329,7 @@ public abstract class Ast {
         @Override
         public String toAmd64() {
           return String.format("movq %s, %%r11\n\t%s %%r11\n\tmovq %%r11, %s",
-            getStackSlot(arg), op.toString(), getStackSlot(dest));
+            getStackSlot(arg), op.getInstr(), getStackSlot(dest));
         }
       }
 
@@ -339,7 +340,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format("movq %s, %%rdi\n\tcallq _bx0_print\n",
+          return String.format("movq %s, %%rdi\n\tcallq bx0_print\n",
             getStackSlot(dest));
         }
       }

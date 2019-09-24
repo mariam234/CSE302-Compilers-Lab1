@@ -18,9 +18,9 @@ public class Main {
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
       out.println(String.format("\t.file \"%s\"", bxFile));
-      out.println("\t.text");
-      out.println("\t.globl _main");
-      out.println("_main:");
+      out.println("\t.section .text");
+      out.println("\t.globl main");
+      out.println("main:");
       out.println("\tpushq %rbp");
       out.println("\tmovq %rsp, %rbp");
       out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));

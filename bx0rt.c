@@ -2,5 +2,5 @@
 #include <stdint.h>
 void bx0_print(int64_t x)
 {
-  printf("%lld\n", x);
+  printf("%ld\n", x);
 }
