@@ -1,0 +1,4 @@
+var x = 10 : int64;
+var y = true : bool;
+print (x + 10);
+print (y && false);

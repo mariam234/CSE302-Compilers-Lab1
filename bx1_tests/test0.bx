@@ -1,0 +1,4 @@
+var x = 10 : int64;
+var y : int64;
+print x;
+x = y; // y not initialized

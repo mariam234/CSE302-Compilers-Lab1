@@ -1,0 +1,12 @@
+var x = true : bool;
+var y = true : bool;
+// nested conditionals
+if (x && y) {
+  print x;
+  x = false;
+  if (x || y) {
+    print 0;
+  } else {
+    print 1;
+  }
+}

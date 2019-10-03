@@ -1,0 +1,8 @@
+var x = 0 : int64;
+// print even positive numbers up to 10
+while (x < 11) {
+  if (x % 2 == 0) {
+    print x;
+  }
+  x = x + 1;
+}

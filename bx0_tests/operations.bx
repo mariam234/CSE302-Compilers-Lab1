@@ -1,0 +1,16 @@
+x = 10;
+print x;
+y = 2 * x;
+print y;
+z = y / 2;
+print z;
+w = z - x - y;
+print w;
+u = - w - - w;
+print u;
+v = -u;
+print v;
+m = x + y * 2;
+print m;
+n = (x + y) * 2;
+print n;
