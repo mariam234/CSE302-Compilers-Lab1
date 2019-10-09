@@ -241,11 +241,11 @@ public abstract class Ast {
           return String.format("print %s", arg.toString());
         }
       }
-      public class Conditional extends Stmt {
+      public static final class IfElse extends Stmt {
         public final Expr condition;
         public final List<Stmt> thenBranch;
         public final List<Stmt> elseBranch;
-        public Conditional(Expr condition, List<Stmt> thenBranch,
+        public IfElse(Expr condition, List<Stmt> thenBranch,
           List<Stmt> elseBranch) {
           this.condition = condition;
           this.thenBranch = thenBranch;
@@ -253,12 +253,14 @@ public abstract class Ast {
         }
         @Override
         public String toString() {
-          return String.format("if (%s) then (%s) else (%s)",
-          this.condition.toString(), this.thenBranch.toString(),
-          this.elseBranch.toString());
+          String ifBlock = String.format("if (%s) then (%s)",
+          this.condition.toString(), this.thenBranch.toString());
+          String elseBlock = this.elseBranch == null
+            ? "" : String.format(" else (%s)", this.elseBranch.toString());
+          return ifBlock + elseBlock;
         }
       }
-      public class While extends Stmt {
+      public static final class While extends Stmt {
         public final Expr condition;
         public final List<Stmt> body;
         public While(Expr condition, List<Stmt> body) {
@@ -274,19 +276,18 @@ public abstract class Ast {
     } // Stmt
 
     public static class VarDecl {
-      public final String var;
-      public Type type;
+      public final Type type;
       public Expr initialValue;
       public final int order;
-      public VarDecl(String var, Type type, Expr initialValue, int order) {
-        this.var = var;
+      public VarDecl(Type type, Expr initialValue, int order) {
         this.type = type;
         this.initialValue = initialValue;
         this.order = order;
       }
       @Override public String toString() {
-        return String.format("(%s, %s)",
-          type.toString(), initialValue.toString());
+        return String.format("(%s, %s, %d)",
+          type.toString(), initialValue == null ? "NO_INIT" : initialValue.toString(),
+          order);
       }
     }
 
@@ -324,6 +325,9 @@ public abstract class Ast {
       @Override
       public String toString() {
         String str = "";
+        for (Map.Entry<String,VarDecl> varEntry : vars.entrySet())   {
+          str += varEntry.getKey() + " -> " + varEntry.getValue().toString() + "\n";
+        }
         for (Stmt stmt : this.statements)
           str += stmt.toString() + ";\n";
         return str;
@@ -333,13 +337,25 @@ public abstract class Ast {
     private static class SourceCreator extends BX0BaseListener {
       private List<Stmt> stmts = new ArrayList<>();
       private Map<String, VarDecl> vars = new HashMap<>();
-      private Stack<Expr> exprStack = new Stack<>();
+      private Stack<Expr> exprs = new Stack<>();
+      private Stack<List<Stmt>> conditionalStmts = new Stack<>();
+      private Stack<Integer> conditionIndexes = new Stack<>();
       private Prog prog = null;
       private int varCounter = 0;
 
+      private void addStmt(Stmt stmt) {
+        if (conditionalStmts.isEmpty()) {
+          stmts.add(stmt);
+        } else {
+          List<Stmt> stmtList = conditionalStmts.pop();
+          stmtList.add(stmt);
+          conditionalStmts.push(stmtList);
+        }
+      }
+
       @Override
       public void exitProgram(BX0Parser.ProgramContext ctx) {
-        this.prog = new Prog(this.stmts, this.vars);
+        this.prog = new Prog(stmts, vars);
       }
 
       @Override
@@ -347,79 +363,88 @@ public abstract class Ast {
         String var = ctx.getChild(0).getText();
         Type type = ((BX0Parser.VardeclContext) ctx.getParent()).type()
           .getText().equals("int64") ? Types.int64Type : Types.boolType;
-        System.out.println(String.format("var %s declared w/ type %s", var, type));
         Expr initialValue = null;
         if (ctx.expr() != null) {
-          System.out.println(String.format("var %s initialized", var));
-          initialValue = this.exprStack.pop();
+          initialValue = this.exprs.pop();
         }
-        vars.put(var, new VarDecl(var, type, initialValue, varCounter++));
+        vars.put(var, new VarDecl(type, initialValue, varCounter++));
       }
 
       @Override
       public void exitMove(BX0Parser.MoveContext ctx) {
-        System.out.println("move");
         Dest dest = new Dest(ctx.getChild(0).getText());
-        Expr source = this.exprStack.pop();
-        this.stmts.add(new Stmt.Move(dest, source));
+        Expr source = this.exprs.pop();
+        addStmt(new Stmt.Move(dest, source));
       }
 
       @Override
-      public void enterIfelsestmt(BX0Parser.IfelsestmtContext ctx) {
-
+      public void enterIfelse(BX0Parser.IfelseContext ctx) {
+        conditionalStmts.push(new ArrayList<>());
+        conditionIndexes.push(exprs.size());
       }
 
-      // @Override
-      // public void exitIfelsestmt(BX0Parser.IfelsestmtContext ctx) {
-      //   Expr condition = this.exprStack.pop();
-      //   List<Stmt> thenbranch = ctx.getChild(0).getText();
-      //   List<Stmt> elsebranch = ctx.getChild(0).getText();
-      //   this.stmts.add(new Stmt.Ifelse(condition, thenBranch, elseBranch));
-      // }
-      //
-      // @Override
-      // public void exitWhilestmt(BX0Parser.WhilestmtContext ctx) {
-      //   Expr condition = this.exprStack.pop();
-      //   List<Stmt> body = ctx.getChild(0).getText();
-      //   this.stmts.add(new Stmt.While(condition, body));
-      // }
+      @Override
+      public void enterElseblock(BX0Parser.ElseblockContext ctx) {
+        conditionalStmts.push(new ArrayList<>());
+      }
+
+      @Override
+      public void exitIfelse(BX0Parser.IfelseContext ctx) {
+        List<Stmt> elseBranch = null;
+        if (ctx.elseblock() != null) {
+          elseBranch = conditionalStmts.pop();
+        }
+        List<Stmt> thenBranch = conditionalStmts.pop();
+        Expr condition = exprs.remove((int) conditionIndexes.pop());
+        addStmt(new Stmt.IfElse(condition, thenBranch, elseBranch));
+      }
+
+      @Override
+      public void enterWhileloop(BX0Parser.WhileloopContext ctx) {
+        conditionalStmts.push(new ArrayList<>());
+        conditionIndexes.push(exprs.size());
+      }
+
+      @Override
+      public void exitWhileloop(BX0Parser.WhileloopContext ctx) {
+        Expr condition = exprs.remove((int) conditionIndexes.pop());
+        List<Stmt> body = conditionalStmts.pop();
+        addStmt(new Stmt.While(condition, body));
+      }
 
       @Override
       public void exitPrint(BX0Parser.PrintContext ctx) {
-        System.out.println("print");
-        Expr arg = this.exprStack.pop();
-        this.stmts.add(new Stmt.Print(arg));
+        Expr arg = this.exprs.pop();
+        addStmt(new Stmt.Print(arg));
       }
 
       @Override
       public void exitUnop(BX0Parser.UnopContext ctx) {
-        System.out.println("unop");
         Unop op = ctx.op.getText().equals("-") ? Unop.Negate : Unop.BitNot;
-        Expr arg = this.exprStack.pop();
+        Expr arg = this.exprs.pop();
         Expr expr = new Expr.UnopApp(op, arg);
-        this.exprStack.push(expr);
+        this.exprs.push(expr);
       }
 
       private void processBinop(Binop op) {
-        System.out.println("binop");
-        Expr right = this.exprStack.pop();
-        Expr left = this.exprStack.pop();
+        Expr right = this.exprs.pop();
+        Expr left = this.exprs.pop();
         Expr expr = new Expr.BinopApp(left, op, right);
-        this.exprStack.push(expr);
+        this.exprs.push(expr);
       }
 
       private void processBoolOp(Expr.BoolOp.Op op) {
-        Expr right = this.exprStack.pop();
-        Expr left = this.exprStack.pop();
+        Expr right = this.exprs.pop();
+        Expr left = this.exprs.pop();
         Expr expr = new Expr.BoolOp(left, op, right);
-        this.exprStack.push(expr);
+        this.exprs.push(expr);
       }
 
       private void processComparison(Expr.Comparison.Op op) {
-        Expr right = this.exprStack.pop();
-        Expr left = this.exprStack.pop();
+        Expr right = this.exprs.pop();
+        Expr left = this.exprs.pop();
         Expr expr = new Expr.Comparison(left, op, right);
-        this.exprStack.push(expr);
+        this.exprs.push(expr);
       }
 
       @Override
@@ -492,13 +517,13 @@ public abstract class Ast {
 
       @Override
       public void exitVariable(BX0Parser.VariableContext ctx) {
-        this.exprStack.push(new Expr.Read(new Dest(ctx.getText())));
+        this.exprs.push(new Expr.Read(new Dest(ctx.getText())));
       }
 
       @Override
       public void exitNumber(BX0Parser.NumberContext ctx) {
         int num = Integer.parseInt(ctx.getText());
-        this.exprStack.push(new Expr.Immediate(num));
+        this.exprs.push(new Expr.Immediate(num));
       }
     }
 

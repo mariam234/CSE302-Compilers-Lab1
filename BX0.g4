@@ -13,8 +13,9 @@ statement: VAR '=' expr ';'                 # move
          | whileloop                        # whilestmt
          ;
 
-block: '{' statement '}' ;
-ifelse: 'if' '(' expr ')' block ('else' (ifelse | block))? ;
+block: '{' (statement)* '}' ;
+ifelse: 'if' '(' expr ')' block ('else' elseblock)? ;
+elseblock: ifelse | block;
 whileloop: 'while' '(' expr ')' block ;
 
 expr: VAR                                   # variable

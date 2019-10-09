@@ -1,4 +1,12 @@
-var x = 10, y : int64;
-var z, w = true : bool;
-print x;
-print w && false;
+var x = 10, y = 5: int64;
+var z = true, w = true, v : bool;
+if (z && y) {
+  if (y < 7) {
+    print x + 10;
+  }
+} else {
+  while (z) {
+    print x;
+    z = false;
+  }
+}
