@@ -347,7 +347,7 @@ public abstract class Ast {
         String var = ctx.getChild(0).getText();
         Type type = ((BX0Parser.VardeclContext) ctx.getParent()).type()
           .getText().equals("int64") ? Types.int64Type : Types.boolType;
-        // System.out.println(String.format("var %s declared w/ type %s", var, type));
+        System.out.println(String.format("var %s declared w/ type %s", var, type));
         Expr initialValue = null;
         if (ctx.expr() != null) {
           System.out.println(String.format("var %s initialized", var));
@@ -362,6 +362,11 @@ public abstract class Ast {
         Dest dest = new Dest(ctx.getChild(0).getText());
         Expr source = this.exprStack.pop();
         this.stmts.add(new Stmt.Move(dest, source));
+      }
+
+      @Override
+      public void enterIfelsestmt(BX0Parser.IfelsestmtContext ctx) {
+
       }
 
       // @Override
