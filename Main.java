@@ -12,6 +12,7 @@ public class Main {
     for (String bxFile : args) {
       if (! bxFile.endsWith(".bx"))
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
+      System.out.println(Ast.Source.readProgram(bxFile).toString());
       generateInstructions(Ast.Source.readProgram(bxFile));
       Ast.Target.Prog progTarget = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);

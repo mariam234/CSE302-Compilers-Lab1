@@ -274,11 +274,15 @@ public abstract class Ast {
     } // Stmt
 
     public static class VarDecl {
-      public final Type type;
+      public final String var;
+      public Type type;
       public Expr initialValue;
-      public VarDecl(Type type, Expr initialValue) {
+      public final int order;
+      public VarDecl(String var, Type type, Expr initialValue, int order) {
+        this.var = var;
         this.type = type;
         this.initialValue = initialValue;
+        this.order = order;
       }
       @Override public String toString() {
         return String.format("(%s, %s)",
@@ -331,6 +335,7 @@ public abstract class Ast {
       private Map<String, VarDecl> vars = new HashMap<>();
       private Stack<Expr> exprStack = new Stack<>();
       private Prog prog = null;
+      private int varCounter = 0;
 
       @Override
       public void exitProgram(BX0Parser.ProgramContext ctx) {
@@ -340,17 +345,20 @@ public abstract class Ast {
       @Override
       public void exitVarinit(BX0Parser.VarinitContext ctx) {
         String var = ctx.getChild(0).getText();
-        Type type = ctx.getParent().getStop().getText().equals("int64")
-          ? Types.int64Type : Types.boolType;
+        Type type = ((BX0Parser.VardeclContext) ctx.getParent()).type()
+          .getText().equals("int64") ? Types.int64Type : Types.boolType;
+        // System.out.println(String.format("var %s declared w/ type %s", var, type));
         Expr initialValue = null;
-        if (ctx.getChildCount() == 2) {
+        if (ctx.expr() != null) {
+          System.out.println(String.format("var %s initialized", var));
           initialValue = this.exprStack.pop();
         }
-        vars.put(var, new VarDecl(type, initialValue));
+        vars.put(var, new VarDecl(var, type, initialValue, varCounter++));
       }
 
       @Override
       public void exitMove(BX0Parser.MoveContext ctx) {
+        System.out.println("move");
         Dest dest = new Dest(ctx.getChild(0).getText());
         Expr source = this.exprStack.pop();
         this.stmts.add(new Stmt.Move(dest, source));
@@ -358,26 +366,29 @@ public abstract class Ast {
 
       // @Override
       // public void exitIfelsestmt(BX0Parser.IfelsestmtContext ctx) {
-      //   Dest dest = new Dest(ctx.getChild(0).getText());
-      //   Expr source = this.exprStack.pop();
-      //   this.stmts.add(new Stmt.Move(dest, source));
+      //   Expr condition = this.exprStack.pop();
+      //   List<Stmt> thenbranch = ctx.getChild(0).getText();
+      //   List<Stmt> elsebranch = ctx.getChild(0).getText();
+      //   this.stmts.add(new Stmt.Ifelse(condition, thenBranch, elseBranch));
       // }
       //
       // @Override
       // public void exitWhilestmt(BX0Parser.WhilestmtContext ctx) {
       //   Expr condition = this.exprStack.pop();
-      //   Expr body = ctx.getChild(0);
+      //   List<Stmt> body = ctx.getChild(0).getText();
       //   this.stmts.add(new Stmt.While(condition, body));
       // }
 
       @Override
       public void exitPrint(BX0Parser.PrintContext ctx) {
+        System.out.println("print");
         Expr arg = this.exprStack.pop();
         this.stmts.add(new Stmt.Print(arg));
       }
 
       @Override
       public void exitUnop(BX0Parser.UnopContext ctx) {
+        System.out.println("unop");
         Unop op = ctx.op.getText().equals("-") ? Unop.Negate : Unop.BitNot;
         Expr arg = this.exprStack.pop();
         Expr expr = new Expr.UnopApp(op, arg);
@@ -385,6 +396,7 @@ public abstract class Ast {
       }
 
       private void processBinop(Binop op) {
+        System.out.println("binop");
         Expr right = this.exprStack.pop();
         Expr left = this.exprStack.pop();
         Expr expr = new Expr.BinopApp(left, op, right);

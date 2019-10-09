@@ -1,13 +1,13 @@
 grammar BX0 ;
 
-program: (vardecl)* | statement (';' statement)* ';'? ;
+program: (vardecl)* (statement)* ;
 
-vardecl: 'var' varinit (',' varinit)* ':' type ;
+vardecl: 'var' varinit (',' varinit)* ':' type ';' ;
 varinit:  VAR ('=' expr)? ;
 type: 'int64' | 'bool' ;
 
-statement: VAR '=' expr                     # move
-         | 'print' expr                     # print
+statement: VAR '=' expr ';'                 # move
+         | 'print' expr ';'                 # print
          | block                            # blockstmt
          | ifelse                           # ifelsestmt
          | whileloop                        # whilestmt
