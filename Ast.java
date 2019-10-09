@@ -7,6 +7,16 @@ import org.antlr.v4.runtime.tree.*;
 
 public abstract class Ast {
   public static abstract class Source {
+    public class UndefinedTypeException extends Exception {
+      public UndefinedTypeException() { super(); }
+    }
+    public class InvalidTypeException extends Exception {
+      public InvalidTypeException() { super(); }
+    }
+    public class UndeclaredVarException extends Exception {
+      public UndeclaredVarException() { super(); }
+    }
+
     public static class Dest {
       public final String var;
       public Dest(String var) {
@@ -52,10 +62,34 @@ public abstract class Ast {
     }
 
     public static abstract class Expr {
+      protected Type type = null; // initially unknown
+
+      public Type getType() {
+        // if (this.type == null) {
+        //   throw new UndefinedTypeException();
+        // }
+        return this.type;
+      }
+
+      public void setType(Type type) {
+        // if (this.type != null && !this.type.equals(type)) {
+        //   throw new InvalidTypeException();
+        // }
+        this.type = type;
+      }
+
+      // removed 'throws ...' annotation for now
+      public abstract Type typeCheck(Map<String,VarDecl> vars);
+
       public static final class Immediate extends Expr {
         public final int value;
         public Immediate(int value) {
           this.value = value;
+          this.type = Types.int64Type;
+        }
+        @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          return this.type;
         }
         @Override
         public String toString() {
@@ -68,6 +102,17 @@ public abstract class Ast {
           this.dest = dest;
         }
         @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          // if (!vars.containsKey(this.dest)) {
+          //   throw new UndeclaredVarException();
+          // }
+          VarDecl varDecl = vars.get(this.dest);
+          if (varDecl != null) {
+            this.type = varDecl.type;
+          }
+          return this.type;
+        }
+        @Override
         public String toString() {
           return this.dest.toString();
         }
@@ -78,6 +123,15 @@ public abstract class Ast {
         public UnopApp(Unop op, Expr arg) {
           this.op = op;
           this.arg = arg;
+          this.type = Types.int64Type;
+        }
+        @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          Type argType = arg.typeCheck(vars);
+          // if (!argType.equals(Types.int64Type)) {
+          //   throw new InvalidTypeException();
+          // }
+          return this.type;
         }
         @Override
         public String toString() {
@@ -91,6 +145,17 @@ public abstract class Ast {
           this.op = op;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
+          this.type = Types.int64Type;
+        }
+        @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          Type leftType = leftArg.typeCheck(vars);
+          Type rightType = rightArg.typeCheck(vars);
+          // if (!leftType.equals(Types.int64Type)
+          //     || !rightType.equals(Types.int64Type)) {
+          //   throw new InvalidTypeException();
+          // }
+          return this.type;
         }
         @Override
         public String toString() {
@@ -98,6 +163,57 @@ public abstract class Ast {
                                this.leftArg.toString(),
                                this.op.toString(),
                                this.rightArg.toString());
+        }
+      }
+      public static final class BoolOp extends Expr {
+        public static enum Op { AND, OR; }
+        public final Op op;
+        public final Expr leftArg, rightArg;
+        public BoolOp(Expr leftArg, Op op, Expr rightArg) {
+          this.op = op;
+          this.leftArg = leftArg;
+          this.rightArg = rightArg;
+          this.type = Types.boolType;
+        }
+        @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          Type leftType = leftArg.typeCheck(vars);
+          Type rightType = rightArg.typeCheck(vars);
+          // if (!leftType.equals(Types.boolType)
+          //     || !rightType.equals(Types.boolType)) {
+          //   throw new InvalidTypeException();
+          // }
+          return this.type;
+        }
+        @Override
+        public String toString() {
+          return String.format("(%s, %s, %s)", this.op.toString(),
+            this.leftArg.toString(), this.rightArg.toString());
+        }
+      }
+      public static final class Comparison extends Expr {
+        public static enum Op { EQ, NEQ, LT, LEQ, GT, GEQ; }
+        public final Op op;
+        public final Expr leftArg, rightArg;
+        public Comparison(Expr leftArg, Op op, Expr rightArg) {
+          this.op = op;
+          this.leftArg = leftArg;
+          this.rightArg = rightArg;
+          this.type = Types.boolType;
+        }
+        @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          Type leftType = leftArg.typeCheck(vars);
+          Type rightType = rightArg.typeCheck(vars);
+          // if (!leftType.equals(rightType)) {
+          //   throw new InvalidTypeException();
+          // }
+          return this.type;
+        }
+        @Override
+        public String toString() {
+          return String.format("(%s, %s, %s)", this.op.toString(),
+            this.leftArg.toString(), this.rightArg.toString());
         }
       }
     } // Expr
@@ -125,12 +241,81 @@ public abstract class Ast {
           return String.format("print %s", arg.toString());
         }
       }
+      public class Conditional extends Stmt {
+        public final Expr condition;
+        public final List<Stmt> thenBranch;
+        public final List<Stmt> elseBranch;
+        public Conditional(Expr condition, List<Stmt> thenBranch,
+          List<Stmt> elseBranch) {
+          this.condition = condition;
+          this.thenBranch = thenBranch;
+          this.elseBranch = elseBranch;
+        }
+        @Override
+        public String toString() {
+          return String.format("if (%s) then (%s) else (%s)",
+          this.condition.toString(), this.thenBranch.toString(),
+          this.elseBranch.toString());
+        }
+      }
+      public class While extends Stmt {
+        public final Expr condition;
+        public final List<Stmt> body;
+        public While(Expr condition, List<Stmt> body) {
+          this.condition = condition;
+          this.body = body;
+        }
+        @Override
+        public String toString() {
+          return String.format("while (%s) do (%s)",
+          this.condition, this.body.toString());
+        }
+      }
     } // Stmt
 
+    public static class VarDecl {
+      public final Type type;
+      public Expr initialValue;
+      public VarDecl(Type type, Expr initialValue) {
+        this.type = type;
+        this.initialValue = initialValue;
+      }
+      @Override public String toString() {
+        return String.format("(%s, %s)",
+          type.toString(), initialValue.toString());
+      }
+    }
+
+    public static abstract class Type {
+      public abstract int getStorageSize();
+    }
+
+    public static class BasicType extends Type {
+      public final String label;
+      public final int size;
+      public BasicType(String label, int size) {
+        this.label = label;
+        this.size = size;
+      }
+      @Override public int getStorageSize() {
+        return Math.max(this.size, 8);
+      }
+      @Override public String toString() {
+        return label;
+      }
+    }
+
+    public static class Types {
+      public static final BasicType int64Type = new BasicType("int64", 64);
+      public static final BasicType boolType = new BasicType("bool", 1);
+    }
+
     public static class Prog {
+      public final Map<String,VarDecl> vars;
       public final List<Stmt> statements;
-      public Prog(List<Stmt> statements) {
+      public Prog(List<Stmt> statements, Map<String, VarDecl> vars) {
         this.statements = statements;
+        this.vars = vars;
       }
       @Override
       public String toString() {
@@ -143,12 +328,25 @@ public abstract class Ast {
 
     private static class SourceCreator extends BX0BaseListener {
       private List<Stmt> stmts = new ArrayList<>();
+      private Map<String, VarDecl> vars = new HashMap<>();
       private Stack<Expr> exprStack = new Stack<>();
       private Prog prog = null;
 
       @Override
       public void exitProgram(BX0Parser.ProgramContext ctx) {
-        this.prog = new Prog(this.stmts);
+        this.prog = new Prog(this.stmts, this.vars);
+      }
+
+      @Override
+      public void exitVarinit(BX0Parser.VarinitContext ctx) {
+        String var = ctx.getChild(0).getText();
+        Type type = ctx.getParent().getStop().getText().equals("int64")
+          ? Types.int64Type : Types.boolType;
+        Expr initialValue = null;
+        if (ctx.getChildCount() == 2) {
+          initialValue = this.exprStack.pop();
+        }
+        vars.put(var, new VarDecl(type, initialValue));
       }
 
       @Override
@@ -157,6 +355,20 @@ public abstract class Ast {
         Expr source = this.exprStack.pop();
         this.stmts.add(new Stmt.Move(dest, source));
       }
+
+      // @Override
+      // public void exitIfelsestmt(BX0Parser.IfelsestmtContext ctx) {
+      //   Dest dest = new Dest(ctx.getChild(0).getText());
+      //   Expr source = this.exprStack.pop();
+      //   this.stmts.add(new Stmt.Move(dest, source));
+      // }
+      //
+      // @Override
+      // public void exitWhilestmt(BX0Parser.WhilestmtContext ctx) {
+      //   Expr condition = this.exprStack.pop();
+      //   Expr body = ctx.getChild(0);
+      //   this.stmts.add(new Stmt.While(condition, body));
+      // }
 
       @Override
       public void exitPrint(BX0Parser.PrintContext ctx) {
@@ -176,6 +388,20 @@ public abstract class Ast {
         Expr right = this.exprStack.pop();
         Expr left = this.exprStack.pop();
         Expr expr = new Expr.BinopApp(left, op, right);
+        this.exprStack.push(expr);
+      }
+
+      private void processBoolOp(Expr.BoolOp.Op op) {
+        Expr right = this.exprStack.pop();
+        Expr left = this.exprStack.pop();
+        Expr expr = new Expr.BoolOp(left, op, right);
+        this.exprStack.push(expr);
+      }
+
+      private void processComparison(Expr.Comparison.Op op) {
+        Expr right = this.exprStack.pop();
+        Expr left = this.exprStack.pop();
+        Expr expr = new Expr.Comparison(left, op, right);
         this.exprStack.push(expr);
       }
 
@@ -213,6 +439,38 @@ public abstract class Ast {
       @Override
       public void exitXor(BX0Parser.XorContext ctx) {
         this.processBinop(Binop.BitXor);
+      }
+
+      @Override
+      public void exitBoolop(BX0Parser.BoolopContext ctx) {
+        String opText = ctx.op.getText();
+        Expr.BoolOp.Op op = opText.equals("&&")
+          ? Expr.BoolOp.Op.AND : Expr.BoolOp.Op.OR;
+        this.processBoolOp(op);
+      }
+
+      @Override
+      public void exitEq(BX0Parser.EqContext ctx) {
+        String opText = ctx.op.getText();
+        Expr.Comparison.Op op = opText.equals("==")
+          ? Expr.Comparison.Op.EQ : Expr.Comparison.Op.NEQ;
+        this.processComparison(op);
+      }
+
+      @Override
+      public void exitLess(BX0Parser.LessContext ctx) {
+        String opText = ctx.op.getText();
+        Expr.Comparison.Op op = opText.equals("<")
+          ? Expr.Comparison.Op.LT : Expr.Comparison.Op.LEQ;
+        this.processComparison(op);
+      }
+
+      @Override
+      public void exitGreater(BX0Parser.GreaterContext ctx) {
+        String opText = ctx.op.getText();
+        Expr.Comparison.Op op = opText.equals(">")
+          ? Expr.Comparison.Op.GT : Expr.Comparison.Op.GEQ;
+        this.processComparison(op);
       }
 
       @Override

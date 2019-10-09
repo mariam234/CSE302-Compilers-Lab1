@@ -1,8 +1,11 @@
-grammar BX1 ;
+grammar BX0 ;
 
 program: (vardecl)* | statement (';' statement)* ';'? ;
 
-vardecl: 'var' VAR ('=' expr)? (',' VAR ('=' expr)?)* ':' type ;
+vardecl: 'var' varinit (',' varinit)* ':' type ;
+varinit:  VAR ('=' expr)? ;
+type: 'int64' | 'bool' ;
+
 statement: VAR '=' expr                     # move
          | 'print' expr                     # print
          | block                            # blockstmt
@@ -14,8 +17,6 @@ block: '{' statement '}' ;
 ifelse: 'if' '(' expr ')' block ('else' (ifelse | block))? ;
 whileloop: 'while' '(' expr ')' block ;
 
-type: 'int64' | 'bool' ;
-
 expr: VAR                                   # variable
     | NUM                                   # number
     | BOOL                                  # boolean
@@ -26,10 +27,10 @@ expr: VAR                                   # variable
     | expr '&' expr                         # and
     | expr '^' expr                         # xor
     | expr '|' expr                         # or
-    | expr '&&' expr                        # booladd
-    | expr '||' expr                        # boolor
+    | expr op=('&&'|'||') expr              # boolop
     | expr op=('=='|'!=') expr              # eq
-    | expr op=('<'|'<='|'>'|'>=') expr      # ineq
+    | expr op=('<'|'<=') expr               # less
+    | expr op=('>'|'>=') expr               # greater
     | '(' expr ')'                          # parens
     ;
 
