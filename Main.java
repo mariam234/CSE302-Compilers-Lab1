@@ -54,8 +54,8 @@ public class Main {
   // helper function for generateInstructions
   private static Ast.Target.Dest genInstrsFromExpr(Ast.Source.Expr expr) {
     Ast.Target.Dest dest = null;
-    if (expr instanceof Ast.Source.Expr.Immediate) {
-      Ast.Source.Expr.Immediate imm = (Ast.Source.Expr.Immediate) expr;
+    if (expr instanceof Ast.Source.Expr.IntImm) {
+      Ast.Source.Expr.IntImm imm = (Ast.Source.Expr.IntImm) expr;
       dest = new Ast.Target.Dest(mVarCounter++);
       mInstrs.add(new Ast.Target.Instr.MoveImm(dest, imm.value));
     } else if (expr instanceof Ast.Source.Expr.Read) {

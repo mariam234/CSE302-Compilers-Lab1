@@ -7,14 +7,12 @@ import org.antlr.v4.runtime.tree.*;
 
 public abstract class Ast {
   public static abstract class Source {
-    public class UndefinedTypeException extends Exception {
-      public UndefinedTypeException() { super(); }
+    public static enum Error {
+      UndefinedTypeException, UndeclaredVarException, InvalidTypeException;
     }
-    public class InvalidTypeException extends Exception {
-      public InvalidTypeException() { super(); }
-    }
-    public class UndeclaredVarException extends Exception {
-      public UndeclaredVarException() { super(); }
+    public static void raise(Error error) {
+      System.out.println(error.toString());
+      System.exit(1);
     }
 
     public static class Dest {
@@ -50,11 +48,12 @@ public abstract class Ast {
     }
 
     public static enum Unop {
-      Negate, BitNot;
+      Negate, BitNot, BoolNot;
 
       public String getInstr() {
         switch(this) {
           case Negate: return "negq";
+          case BoolNot:
           case BitNot: return "notq";
           default: throw new IllegalArgumentException();
         }
@@ -62,28 +61,27 @@ public abstract class Ast {
     }
 
     public static abstract class Expr {
-      protected Type type = null; // initially unknown
+      protected Type type = null;
 
       public Type getType() {
-        // if (this.type == null) {
-        //   throw new UndefinedTypeException();
-        // }
+        if (this.type == null) {
+          raise(Error.UndefinedTypeException);
+        }
         return this.type;
       }
 
       public void setType(Type type) {
-        // if (this.type != null && !this.type.equals(type)) {
-        //   throw new InvalidTypeException();
-        // }
+        if (this.type != null && !this.type.equals(type)) {
+          raise(Error.InvalidTypeException);
+        }
         this.type = type;
       }
 
-      // removed 'throws ...' annotation for now
       public abstract Type typeCheck(Map<String,VarDecl> vars);
 
-      public static final class Immediate extends Expr {
+      public static final class IntImm extends Expr {
         public final int value;
-        public Immediate(int value) {
+        public IntImm(int value) {
           this.value = value;
           this.type = Types.int64Type;
         }
@@ -96,6 +94,21 @@ public abstract class Ast {
           return Integer.toString(this.value);
         }
       }
+      public static final class BoolImm extends Expr {
+        public final boolean value;
+        public BoolImm(boolean value) {
+          this.value = value;
+          this.type = Types.boolType;
+        }
+        @Override
+        public Type typeCheck(Map<String,VarDecl> vars) {
+          return this.type;
+        }
+        @Override
+        public String toString() {
+          return Boolean.toString(this.value);
+        }
+      }
       public static final class Read extends Expr {
         public final Dest dest;
         public Read(Dest dest) {
@@ -103,13 +116,11 @@ public abstract class Ast {
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
-          // if (!vars.containsKey(this.dest)) {
-          //   throw new UndeclaredVarException();
-          // }
-          VarDecl varDecl = vars.get(this.dest);
-          if (varDecl != null) {
-            this.type = varDecl.type;
+          if (!vars.containsKey(this.dest)) {
+            raise(Error.UndeclaredVarException);
           }
+          VarDecl varDecl = vars.get(this.dest);
+          this.type = varDecl.type;
           return this.type;
         }
         @Override
@@ -123,14 +134,14 @@ public abstract class Ast {
         public UnopApp(Unop op, Expr arg) {
           this.op = op;
           this.arg = arg;
-          this.type = Types.int64Type;
+          this.type = op == Unop.BoolNot ? Types.boolType : Types.int64Type;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type argType = arg.typeCheck(vars);
-          // if (!argType.equals(Types.int64Type)) {
-          //   throw new InvalidTypeException();
-          // }
+          if (!argType.equals(this.type)) {
+            raise(Error.InvalidTypeException);
+          }
           return this.type;
         }
         @Override
@@ -151,10 +162,10 @@ public abstract class Ast {
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
-          // if (!leftType.equals(Types.int64Type)
-          //     || !rightType.equals(Types.int64Type)) {
-          //   throw new InvalidTypeException();
-          // }
+          if (!leftType.equals(Types.int64Type)
+              || !rightType.equals(Types.int64Type)) {
+            raise(Error.InvalidTypeException);
+          }
           return this.type;
         }
         @Override
@@ -179,10 +190,10 @@ public abstract class Ast {
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
-          // if (!leftType.equals(Types.boolType)
-          //     || !rightType.equals(Types.boolType)) {
-          //   throw new InvalidTypeException();
-          // }
+          if (!leftType.equals(Types.boolType)
+              || !rightType.equals(Types.boolType)) {
+            raise(Error.InvalidTypeException);
+          }
           return this.type;
         }
         @Override
@@ -205,9 +216,9 @@ public abstract class Ast {
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
-          // if (!leftType.equals(rightType)) {
-          //   throw new InvalidTypeException();
-          // }
+          if (!leftType.equals(rightType)) {
+            raise(Error.InvalidTypeException);
+          }
           return this.type;
         }
         @Override
@@ -273,6 +284,15 @@ public abstract class Ast {
           this.condition, this.body.toString());
         }
       }
+      public static final class Block extends Stmt {
+        public final List<Stmt> stmts;
+        public Block() {
+          this.stmts = new ArrayList<Stmt>();
+        }
+        public void addStmt(Stmt stmt) {
+          stmts.add(stmt);
+        }
+      }
     } // Stmt
 
     public static class VarDecl {
@@ -335,23 +355,11 @@ public abstract class Ast {
     }
 
     private static class SourceCreator extends BX0BaseListener {
-      private List<Stmt> stmts = new ArrayList<>();
+      private Stack<Stmt> stmts = new Stack<>();
       private Map<String, VarDecl> vars = new HashMap<>();
       private Stack<Expr> exprs = new Stack<>();
-      private Stack<List<Stmt>> conditionalStmts = new Stack<>();
-      private Stack<Integer> conditionIndexes = new Stack<>();
       private Prog prog = null;
       private int varCounter = 0;
-
-      private void addStmt(Stmt stmt) {
-        if (conditionalStmts.isEmpty()) {
-          stmts.add(stmt);
-        } else {
-          List<Stmt> stmtList = conditionalStmts.pop();
-          stmtList.add(stmt);
-          conditionalStmts.push(stmtList);
-        }
-      }
 
       @Override
       public void exitProgram(BX0Parser.ProgramContext ctx) {
@@ -374,53 +382,48 @@ public abstract class Ast {
       public void exitMove(BX0Parser.MoveContext ctx) {
         Dest dest = new Dest(ctx.getChild(0).getText());
         Expr source = this.exprs.pop();
-        addStmt(new Stmt.Move(dest, source));
+        stmts.push(new Stmt.Move(dest, source));
       }
 
       @Override
-      public void enterIfelse(BX0Parser.IfelseContext ctx) {
-        conditionalStmts.push(new ArrayList<>());
-        conditionIndexes.push(exprs.size());
-      }
-
-      @Override
-      public void enterElseblock(BX0Parser.ElseblockContext ctx) {
-        conditionalStmts.push(new ArrayList<>());
+      public void exitBlock(BX0Parser.BlockContext ctx) {
+        Stmt.Block block = new Stmt.Block();
+        int blockSize = ctx.statement().size();
+        while (blockSize != 0) {
+          block.addStmt(stmts.pop());
+          blockSize -= 1;
+        }
+        stmts.push(block);
       }
 
       @Override
       public void exitIfelse(BX0Parser.IfelseContext ctx) {
         List<Stmt> elseBranch = null;
-        if (ctx.elseblock() != null) {
-          elseBranch = conditionalStmts.pop();
+        if (ctx.ifelse() != null || ctx.block(1) != null) {
+          elseBranch = ((Stmt.Block) stmts.pop()).stmts;
         }
-        List<Stmt> thenBranch = conditionalStmts.pop();
-        Expr condition = exprs.remove((int) conditionIndexes.pop());
-        addStmt(new Stmt.IfElse(condition, thenBranch, elseBranch));
-      }
-
-      @Override
-      public void enterWhileloop(BX0Parser.WhileloopContext ctx) {
-        conditionalStmts.push(new ArrayList<>());
-        conditionIndexes.push(exprs.size());
+        List<Stmt> thenBranch = ((Stmt.Block) stmts.pop()).stmts;
+        Expr condition = exprs.pop();
+        stmts.push(new Stmt.IfElse(condition, thenBranch, elseBranch));
       }
 
       @Override
       public void exitWhileloop(BX0Parser.WhileloopContext ctx) {
-        Expr condition = exprs.remove((int) conditionIndexes.pop());
-        List<Stmt> body = conditionalStmts.pop();
-        addStmt(new Stmt.While(condition, body));
+        Expr condition = exprs.pop();
+        List<Stmt> body = ((Stmt.Block) stmts.pop()).stmts;
+        stmts.push(new Stmt.While(condition, body));
       }
 
       @Override
       public void exitPrint(BX0Parser.PrintContext ctx) {
         Expr arg = this.exprs.pop();
-        addStmt(new Stmt.Print(arg));
+        stmts.push(new Stmt.Print(arg));
       }
 
       @Override
       public void exitUnop(BX0Parser.UnopContext ctx) {
-        Unop op = ctx.op.getText().equals("-") ? Unop.Negate : Unop.BitNot;
+        Unop op = ctx.op.getText().equals("-") ?
+          Unop.Negate :  ctx.op.getText().equals("~") ? Unop.BitNot : Unop.BoolNot;
         Expr arg = this.exprs.pop();
         Expr expr = new Expr.UnopApp(op, arg);
         this.exprs.push(expr);
@@ -523,10 +526,16 @@ public abstract class Ast {
       @Override
       public void exitNumber(BX0Parser.NumberContext ctx) {
         int num = Integer.parseInt(ctx.getText());
-        this.exprs.push(new Expr.Immediate(num));
+        this.exprs.push(new Expr.IntImm(num));
+      }
+
+      @Override
+      public void exitBoolean(BX0Parser.BooleanContext ctx) {
+        boolean bool = Boolean.parseBoolean(ctx.getText());
+        this.exprs.push(new Expr.BoolImm(bool));
       }
     }
-
+    
     /** Parse and return an AST for a BX0 program */
     public static Prog readProgram(String file) throws Exception {
       CharStream input = CharStreams.fromFileName(file);

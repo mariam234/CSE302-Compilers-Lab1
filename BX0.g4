@@ -14,14 +14,13 @@ statement: VAR '=' expr ';'                 # move
          ;
 
 block: '{' (statement)* '}' ;
-ifelse: 'if' '(' expr ')' block ('else' elseblock)? ;
-elseblock: ifelse | block;
+ifelse: 'if' '(' expr ')' block ('else' (ifelse | block))? ;
 whileloop: 'while' '(' expr ')' block ;
 
 expr: VAR                                   # variable
     | NUM                                   # number
     | BOOL                                  # boolean
-    | op=('~'|'-') expr                     # unop
+    | op=('~'|'-'|'!') expr                 # unop
     | expr op=('*'|'/'|'%') expr            # mul
     | expr op=('+'|'-') expr                # add
     | expr op=('<<'|'>>') expr              # shift
