@@ -1,0 +1,4 @@
+var x = y, y = 20 : int64; // initialization of x invalid
+var z = z : int64; // initialization of z invalid
+var b = 42 : bool; // bad type for initial value
+var u = 20, v = u + 10 : int64; // Ok

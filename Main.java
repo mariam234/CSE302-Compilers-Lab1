@@ -13,9 +13,9 @@ public class Main {
     for (String bxFile : args) {
       if (! bxFile.endsWith(".bx"))
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
-      Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile)
-      sourceProg.typeCheck();
-      RTLstmts(sourceProg.stmts);
+      Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile);
+      System.out.println(sourceProg.toString());
+      RTLstmts(sourceProg.stmts, 0);
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
@@ -41,33 +41,59 @@ public class Main {
     }
   }
 
-  private static void generateInstructions(Ast.Source.Prog progSource) {
-    for (Ast.Source.Stmt stmt : progSource.stmts) {
-      if (stmt instanceof Ast.Source.Stmt.Move) {
-        Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
-        mVars.put(move.dest.var, genInstrsFromExpr(move.source));
-      } else if (stmt instanceof Ast.Source.Stmt.Print) {
-        Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
-        mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      }
-    }
-  }
+  // private static void generateInstructions(Ast.Source.Prog progSource) {
+  //   for (Ast.Source.Stmt stmt : progSource.stmts) {
+  //     if (stmt instanceof Ast.Source.Stmt.Move) {
+  //       Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
+  //       mVars.put(move.dest.var, genInstrsFromExpr(move.source));
+  //     } else if (stmt instanceof Ast.Source.Stmt.Print) {
+  //       Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
+  //       mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+  //     }
+  //   }
+  // }
+  //
+  // // helper function for generateInstructions
+  // private static Ast.Target.Dest genInstrsFromExpr(Ast.Source.Expr expr) {
+  //   Ast.Target.Dest dest = null;
+  //   if (expr instanceof Ast.Source.Expr.IntImm) {
+  //     Ast.Source.Expr.IntImm imm = (Ast.Source.Expr.IntImm) expr;
+  //     dest = new Ast.Target.Dest(mVarCounter++);
+  //     mInstrs.add(new Ast.Target.Instr.MoveImm(dest, imm.value));
+  //   } else if (expr instanceof Ast.Source.Expr.Read) {
+  //     Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
+  //     dest = mVars.get(read.dest.var);
+  //   } else if (expr instanceof Ast.Source.Expr.UnopApp) {
+  //     Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
+  //     Ast.Target.Dest argDest = genInstrsFromExpr(unopApp.arg);
+  //     dest = new Ast.Target.Dest(mVarCounter++);
+  //     mInstrs.add(new Ast.Target.Instr.MoveUnop(dest, unopApp.op, argDest));
+  //   } else if (expr instanceof Ast.Source.Expr.BinopApp) {
+  //     Ast.Source.Expr.BinopApp binopApp = (Ast.Source.Expr.BinopApp) expr;
+  //     Ast.Target.Dest leftDest = genInstrsFromExpr(binopApp.leftArg);
+  //     Ast.Target.Dest rightDest = genInstrsFromExpr(binopApp.rightArg);
+  //     dest = new Ast.Target.Dest(mVarCounter++);
+  //     mInstrs.add(new Ast.Target.Instr.MoveBinop(
+  //       dest, leftDest, binopApp.op, rightDest));
+  //   }
+  //   return dest;
+  // }
 
   private static class DestLabelPair {
-    public Dest Ast.Target.Source dest;
+    public Ast.Target.Dest dest;
     public int inLabel;
-    public Pair(Ast.Target.Source dest, int inLabel) {
+    public DestLabelPair(Ast.Target.Dest dest, int inLabel) {
       this.dest = dest;
       this.inLabel = inLabel;
     }
   }
 
-  private static int RTLstmts(ArrayList<Ast.Source.Stmt> stmts, int Lo) {
+  private static int RTLstmts(List<Ast.Source.Stmt> stmts, int Lo) {
     if (stmts.isEmpty()) {
       return mLabelCounter;
     }
     int Li = RTLs(stmts.remove(stmts.size() - 1), Lo);
-    RTLstmts(stmts, Li);
+    return RTLstmts(stmts, Li);
   }
 
   // returns in label
@@ -79,11 +105,12 @@ public class Main {
         mVars.put(move.dest.var, res.dest);
         return res.inLabel;
       } else {
-        int Lt, Lf = mLabelCounter++, mLabelCounter++;
+        int Lt = mLabelCounter++;
+        int Lf = mLabelCounter++;
         // create new dest or use old one from looking up if exists?
-        Ast.Target.Instr.Dest dest = mVarCounter++;
-        mInstrs.add(new Ast.Target.Instr.MoveImm(Lt, 0, dest, Lo))
-        mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, 1, dest, Lo))
+        Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
+        mInstrs.add(new Ast.Target.Instr.MoveImm(Lt, dest, 0, Lo));
+        mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, dest, 1, Lo));
         int Li = RTLb(move.source, Lt, Lf);
         mVars.put(move.dest.var, dest);
         return Li;
@@ -99,7 +126,7 @@ public class Main {
       Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
       int Lt = RTLstmts(whileStmt.body, Lo);
       int Lend = mLabelCounter++;
-      int Li RTLb(whileStmt.condition, Lend, Lo);
+      int Li = RTLb(whileStmt.condition, Lend, Lo);
       mInstrs.add(new Ast.Target.Instr.Goto(Lend, Li));
       return Li;
     }
@@ -114,10 +141,11 @@ public class Main {
         mInstrs.add(new Ast.Target.Instr.Print(res.inLabel, res.dest, Lo));
         return res.inLabel;
       } else {
-        int Lt, Lf = mLabelCounter++, mLabelCounter++;
-        Ast.Target.Instr.Dest dest = mVarCounter++;
-        mInstrs.add(new Ast.Target.Instr.Print(Lt, 0, dest, Lo))
-        mInstrs.add(new Ast.Target.Instr.Print(Lf, 1, dest, Lo))
+        int Lt = mLabelCounter++;
+        int Lf = mLabelCounter++;
+        Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
+        mInstrs.add(new Ast.Target.Instr.MoveImm(Lt, dest, 0, Lo));
+        mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, dest, 1, Lo));
         int Li = RTLb(print.arg, Lt, Lf);
         return Li;
       }
@@ -125,43 +153,17 @@ public class Main {
     return -1;
   }
 
-  // helper function for generateInstructions
-  private static Ast.Target.Dest genInstrsFromExpr(Ast.Source.Expr expr) {
-    Ast.Target.Dest dest = null;
-    if (expr instanceof Ast.Source.Expr.IntImm) {
-      Ast.Source.Expr.IntImm imm = (Ast.Source.Expr.IntImm) expr;
-      dest = new Ast.Target.Dest(mVarCounter++);
-      mInstrs.add(new Ast.Target.Instr.MoveImm(dest, imm.value));
-    } else if (expr instanceof Ast.Source.Expr.Read) {
-      Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
-      dest = mVars.get(read.dest.var);
-    } else if (expr instanceof Ast.Source.Expr.UnopApp) {
-      Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
-      Ast.Target.Dest argDest = genInstrsFromExpr(unopApp.arg);
-      dest = new Ast.Target.Dest(mVarCounter++);
-      mInstrs.add(new Ast.Target.Instr.MoveUnop(dest, unopApp.op, argDest));
-    } else if (expr instanceof Ast.Source.Expr.BinopApp) {
-      Ast.Source.Expr.BinopApp binopApp = (Ast.Source.Expr.BinopApp) expr;
-      Ast.Target.Dest leftDest = genInstrsFromExpr(binopApp.leftArg);
-      Ast.Target.Dest rightDest = genInstrsFromExpr(binopApp.rightArg);
-      dest = new Ast.Target.Dest(mVarCounter++);
-      mInstrs.add(new Ast.Target.Instr.MoveBinop(
-        dest, leftDest, binopApp.op, rightDest));
-    }
-    return dest;
-  }
-
   // takes in expr and outlabel; returns inlabel and result dest (bottom-up)
   private static DestLabelPair RTLi(Ast.Source.Expr expr, int Lo) {
-    Ast.Target.Dest dest = new new Ast.Target.Dest(mVarCounter++);
+    Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
     if (expr instanceof Ast.Source.Expr.IntImm) {
       Ast.Source.Expr.IntImm intImm = (Ast.Source.Expr.IntImm) expr;
-      mInstrs.add(new Ast.Target.Instr.MoveImm(mLabelCounter++, rd, intImm.value, Lo));
+      mInstrs.add(new Ast.Target.Instr.MoveImm(mLabelCounter++, dest, intImm.value, Lo));
       return new DestLabelPair(dest, mLabelCounter);
     }
     else if (expr instanceof Ast.Source.Expr.Read) {
       Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
-      mInstrs.add(new Ast.Target.Instr.MoveCp(mLabelCounter++, lookup(read.dest), dest, Lo));
+      mInstrs.add(new Ast.Target.Instr.MoveCp(mLabelCounter++, lookup(read.dest.var), dest, Lo));
       return new DestLabelPair(dest, mLabelCounter);
     }
     else if (expr instanceof Ast.Source.Expr.UnopApp) {
@@ -177,7 +179,7 @@ public class Main {
       DestLabelPair rightRes = RTLi(binopApp.rightArg, L1);
       DestLabelPair leftRes = RTLi(binopApp.leftArg, rightRes.inLabel);
       mInstrs.add(new Ast.Target.Instr.MoveBinop(
-        L1, dest, binopApp.op, leftRes.dest, rightRes.dest, Lo));
+        L1, dest, leftRes.dest, binopApp.op, rightRes.dest, Lo));
       return new DestLabelPair(dest, leftRes.inLabel);
     }
     return null;
@@ -200,29 +202,30 @@ public class Main {
           ? RTLb(boolOpApp.leftArg, L1, Lf) : RTLb(boolOpApp.leftArg, Lt, L1);
     }
     else if (expr instanceof Ast.Source.Expr.Comp) {
+      Ast.Source.Expr.Comp comp = (Ast.Source.Expr.Comp) expr;
       if (comp.leftArg.getType() == Ast.Source.Types.int64) {
         int L1 = mLabelCounter++;
         DestLabelPair rightRes = RTLi(comp.rightArg, L1);
         DestLabelPair leftRes = RTLi(comp.leftArg, rightRes.inLabel);
-        Ast.Source.Expr.Comp comp = (Ast.Source.Expr.Comp) expr;
-        mInstrs.add(new Ast.Target.BBranch(L1, comp.op, leftArg.dest,
-          rightArg.dest, Lt, Lf));
+        mInstrs.add(new Ast.Target.Instr.BBranch(L1, leftRes.dest, comp.op,
+          rightRes.dest, Lt, Lf));
         return leftRes.inLabel;
       } else {
         // using equivalencies for boolean eq/neq
         if (comp.op == Ast.Source.CompOp.Eq) {
-          return -1;
-        } else {
           return -2;
+        } else {
+          return -3;
         }
       }
     }
+    return -1;
   }
 
-  private static lookup(String var) {
-    Ast.Target.Dest dest = mVars.get(read.dest.var);
+  private static Ast.Target.Dest lookup(String var) {
+    Ast.Target.Dest dest = mVars.get(var);
     if (dest == null) {
-      Ast.Source.raise(Ast.Source.Error.UninitializedVarException);
+      Ast.Source.raise(Ast.Source.Error.UninitializedVarException, var);
     }
     return dest;
   }

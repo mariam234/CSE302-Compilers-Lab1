@@ -10,8 +10,8 @@ public abstract class Ast {
       UndefinedTypeException, UndeclaredVarException, InvalidTypeException,
       UninitializedVarException;
     }
-    public static void raise(Error error) {
-      System.out.println(error.toString());
+    public static void raise(Error error, String message) {
+      System.out.println(error.toString() + " - " + message);
       System.exit(1);
     }
 
@@ -73,16 +73,9 @@ public abstract class Ast {
 
       public Type getType() {
         if (this.type == null) {
-          raise(Error.UndefinedTypeException);
+          raise(Error.UndefinedTypeException, this.toString());
         }
         return this.type;
-      }
-
-      public void setType(Type type) {
-        if (this.type != null && !this.type.equals(type)) {
-          raise(Error.InvalidTypeException);
-        }
-        this.type = type;
       }
 
       public abstract Type typeCheck(Map<String,VarDecl> vars);
@@ -124,10 +117,10 @@ public abstract class Ast {
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
-          if (!vars.containsKey(this.dest)) {
-            raise(Error.UndeclaredVarException);
+          VarDecl varDecl = vars.get(this.dest.var);
+          if (varDecl == null) {
+            raise(Error.UndeclaredVarException, this.toString());
           }
-          VarDecl varDecl = vars.get(this.dest);
           this.type = varDecl.type;
           return this.type;
         }
@@ -148,7 +141,7 @@ public abstract class Ast {
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type argType = arg.typeCheck(vars);
           if (!argType.equals(this.type)) {
-            raise(Error.InvalidTypeException);
+            raise(Error.InvalidTypeException, this.toString());
           }
           return this.type;
         }
@@ -172,7 +165,7 @@ public abstract class Ast {
           Type rightType = rightArg.typeCheck(vars);
           if (!leftType.equals(Types.int64)
               || !rightType.equals(Types.int64)) {
-            raise(Error.InvalidTypeException);
+            raise(Error.InvalidTypeException, this.toString());
           }
           return this.type;
         }
@@ -199,7 +192,7 @@ public abstract class Ast {
           Type rightType = rightArg.typeCheck(vars);
           if (!leftType.equals(Types.bool)
               || !rightType.equals(Types.bool)) {
-            raise(Error.InvalidTypeException);
+            raise(Error.InvalidTypeException, this.toString());
           }
           return this.type;
         }
@@ -224,7 +217,7 @@ public abstract class Ast {
           Type rightType = rightArg.typeCheck(vars);
           if (!leftType.equals(rightType)
               || ((op != CompOp.Eq || op != CompOp.Neq) && !leftType.equals(Types.int64))) {
-            raise(Error.InvalidTypeException);
+            raise(Error.InvalidTypeException, this.toString());
           }
           return this.type;
         }
@@ -237,7 +230,7 @@ public abstract class Ast {
     } // Expr
 
     public static abstract class Stmt {
-      public abstract void typeCheck();
+      public abstract void typeCheck(Map<String,VarDecl> vars);
 
       public static final class Move extends Stmt {
         public final Dest dest;
@@ -248,12 +241,12 @@ public abstract class Ast {
         }
         @Override
         public void typeCheck(Map<String,VarDecl> vars) {
-          VarDecl varDecl = vars.get(dest.var);
+          VarDecl varDecl = vars.get(this.dest.var);
           if (varDecl == null) {
-            raise(Errors.UndeclaredVarException);
+            raise(Error.UndeclaredVarException, this.toString());
           }
-          if (source.typeCheck() != varDecl.type) {
-            raise(Errors.InvalidTypeException);
+          if (source.typeCheck(vars) != varDecl.type) {
+            raise(Error.InvalidTypeException, this.toString());
           }
         }
         @Override
@@ -287,14 +280,16 @@ public abstract class Ast {
         }
         @Override
         public void typeCheck(Map<String,VarDecl> vars) {
-          if (condition.typeCheck() != Types.bool) {
-            raise(Errors.InvalidTypeException);
+          if (condition.typeCheck(vars) != Types.bool) {
+            raise(Error.InvalidTypeException, condition.toString());
           }
           for (Stmt stmt : this.thenBranch) {
             stmt.typeCheck(vars);
           }
-          for (Stmt stmt : this.elseBranch) {
-            stmt.typeCheck(vars);
+          if (this.elseBranch != null) {
+            for (Stmt stmt : this.elseBranch) {
+              stmt.typeCheck(vars);
+            }
           }
         }
         @Override
@@ -315,8 +310,8 @@ public abstract class Ast {
         }
         @Override
         public void typeCheck(Map<String,VarDecl> vars) {
-          if (condition.typeCheck() != Types.bool) {
-            raise(Errors.InvalidTypeException);
+          if (condition.typeCheck(vars) != Types.bool) {
+            raise(Error.InvalidTypeException, condition.toString());
           }
           for (Stmt stmt : this.body) {
             stmt.typeCheck(vars);
@@ -388,18 +383,21 @@ public abstract class Ast {
       public Prog(List<Stmt> stmts, Map<String, VarDecl> vars) {
         this.stmts = stmts;
         this.vars = vars;
+
+        this.typeCheck();
+        this.collectInitials();
       }
-      public void typeCheck() {
-        for (Stmt stmt : this.body) {
+      private void typeCheck() {
+        for (Stmt stmt : this.stmts) {
           stmt.typeCheck(this.vars);
         }
       }
-      public void collectInitials() {
+      private void collectInitials() {
         List<Stmt> moveStmts = new ArrayList<>();
         for (Map.Entry<String,VarDecl> varEntry : vars.entrySet())   {
-          if (varDecl.initialValue != null) {
-            moveStmts.add(new Stmt.Move(varEntry.getKey(),
-                                        varEntry.getValue().initialValue));
+          Expr initValue = varEntry.getValue().initialValue;
+          if (initValue != null) {
+            moveStmts.add(new Stmt.Move(new Dest(varEntry.getKey()), initValue));
           }
         }
         this.stmts.addAll(0, moveStmts);
@@ -410,7 +408,7 @@ public abstract class Ast {
         for (Map.Entry<String,VarDecl> varEntry : vars.entrySet())   {
           str += varEntry.getKey() + " -> " + varEntry.getValue().toString() + "\n";
         }
-        for (Stmt stmt : this.statements) {
+        for (Stmt stmt : this.stmts) {
           str += stmt.toString() + ";\n";
         }
         return str;
@@ -632,9 +630,9 @@ public abstract class Ast {
         public final int imm;
         public final int outLabel;
         public MoveImm(int inLabel, Dest dest, int imm, int outLabel) {
+          this.inLabel = inLabel;
           this.dest = dest;
           this.imm = imm;
-          this.inLabel = inLabel;
           this.outLabel = outLabel;
         }
         @Override
@@ -652,9 +650,9 @@ public abstract class Ast {
         public final Dest dest, source;
         public final int outLabel;
         public MoveCp(int inLabel, Dest dest, Dest source, int outLabel) {
+          this.inLabel = inLabel;
           this.dest = dest;
           this.source = source;
-          this.inLabel = inLabel;
           this.outLabel = outLabel;
         }
         @Override
@@ -675,12 +673,11 @@ public abstract class Ast {
         public final int outLabel;
         public MoveBinop(int inLabel, Dest dest, Dest leftArg, Ast.Source.Binop op,
           Dest rightArg, int outLabel) {
+          this.inLabel = inLabel;
           this.dest = dest;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
           this.op = op;
-          // in and out labels should be 3 apart
-          this.inLabel = inLabel;
           this.outLabel = outLabel;
         }
         @Override
@@ -726,11 +723,10 @@ public abstract class Ast {
         public final int outLabel;
         public MoveUnop(int inLabel, Dest dest, Ast.Source.Unop op, Dest arg,
           int outLabel) {
+          this.inLabel = inLabel;
           this.dest = dest;
           this.arg = arg;
           this.op = op;
-          // in and out labels should be 3 apart
-          this.inLabel = inLabel;
           this.outLabel = outLabel;
         }
         @Override
@@ -753,9 +749,11 @@ public abstract class Ast {
         public final int trueOutLabel, falseOutLabel;
         public UBranch(int inLabel, Ast.Source.CompOp op, Dest arg,
           int trueOutLabel, int falseOutLabel) {
+          this.inLabel = inLabel;
           this.op = op;
           this.arg = arg;
-          this.trueOutLabel, this.falseOutLabel = trueOutLabel, falseOutLabel;
+          this.trueOutLabel = trueOutLabel;
+          this.falseOutLabel = falseOutLabel;
         }
         @Override
         public String toRtl() {
@@ -775,16 +773,18 @@ public abstract class Ast {
         public final int trueOutLabel, falseOutLabel;
         public BBranch(int inLabel, Dest leftArg, Ast.Source.CompOp op,
           Dest rightArg, int trueOutLabel, int falseOutLabel) {
+          this.inLabel = inLabel;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
           this.op = op;
-          this.trueOutLabel, this.falseOutLabel = trueOutLabel, falseOutLabel;
+          this.trueOutLabel = trueOutLabel;
+          this.falseOutLabel = falseOutLabel;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: bbranch %s #%dq #%dq --> L%d, L%d",
             this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.trueOutLabel,
-            this.falseOutLabel));
+            this.falseOutLabel);
         }
         @Override
         public String toAmd64() {

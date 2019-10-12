@@ -1,12 +1,7 @@
 var x = 10, y = 5: int64;
-var z = false, w = true, v : bool;
-if (z && y) {
-  if (y < 7) {
-    print x + 10;
-  }
+var z = false : bool;
+if (z) {
+  print(x);
 } else {
-  while (!z) {
-    print x;
-    z = true;
-  }
+  print(y);
 }
