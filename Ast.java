@@ -1,5 +1,4 @@
 // Abstract syntax trees
-
 import java.util.*;
 
 import org.antlr.v4.runtime.*;
@@ -8,7 +7,8 @@ import org.antlr.v4.runtime.tree.*;
 public abstract class Ast {
   public static abstract class Source {
     public static enum Error {
-      UndefinedTypeException, UndeclaredVarException, InvalidTypeException;
+      UndefinedTypeException, UndeclaredVarException, InvalidTypeException,
+      UninitializedVarException;
     }
     public static void raise(Error error) {
       System.out.println(error.toString());
@@ -58,6 +58,14 @@ public abstract class Ast {
           default: throw new IllegalArgumentException();
         }
       }
+    }
+
+    public static enum BoolOp {
+      And, Or;
+    }
+
+    public static enum CompOp {
+      Eq, Neq, Lt, Leq, Gt, Geq;
     }
 
     public static abstract class Expr {
@@ -176,11 +184,10 @@ public abstract class Ast {
                                this.rightArg.toString());
         }
       }
-      public static final class BoolOp extends Expr {
-        public static enum Op { AND, OR; }
-        public final Op op;
+      public static final class BoolOpApp extends Expr {
+        public final BoolOp op;
         public final Expr leftArg, rightArg;
-        public BoolOp(Expr leftArg, Op op, Expr rightArg) {
+        public BoolOpApp(Expr leftArg, BoolOp op, Expr rightArg) {
           this.op = op;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
@@ -202,11 +209,10 @@ public abstract class Ast {
             this.leftArg.toString(), this.rightArg.toString());
         }
       }
-      public static final class Comparison extends Expr {
-        public static enum Op { EQ, NEQ, LT, LEQ, GT, GEQ; }
-        public final Op op;
+      public static final class Comp extends Expr {
+        public final CompOp op;
         public final Expr leftArg, rightArg;
-        public Comparison(Expr leftArg, Op op, Expr rightArg) {
+        public Comp(Expr leftArg, CompOp op, Expr rightArg) {
           this.op = op;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
@@ -216,7 +222,8 @@ public abstract class Ast {
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
-          if (!leftType.equals(rightType)) {
+          if (!leftType.equals(rightType)
+              || ((op != CompOp.Eq || op != CompOp.Neq) && !leftType.equals(Types.int64Type))) {
             raise(Error.InvalidTypeException);
           }
           return this.type;
@@ -354,8 +361,9 @@ public abstract class Ast {
       }
     }
 
-    private static class SourceCreator extends BX0BaseListener {
-      private Stack<Stmt> stmts = new Stack<>();
+    // Source code parser
+    public static class SourceCreator extends BX0BaseListener {
+      private Stack<Ast.Source.Stmt> stmts = new Stack<>();
       private Map<String, VarDecl> vars = new HashMap<>();
       private Stack<Expr> exprs = new Stack<>();
       private Prog prog = null;
@@ -436,17 +444,17 @@ public abstract class Ast {
         this.exprs.push(expr);
       }
 
-      private void processBoolOp(Expr.BoolOp.Op op) {
+      private void processBoolOp(BoolOp op) {
         Expr right = this.exprs.pop();
         Expr left = this.exprs.pop();
-        Expr expr = new Expr.BoolOp(left, op, right);
+        Expr expr = new Expr.BoolOpApp(left, op, right);
         this.exprs.push(expr);
       }
 
-      private void processComparison(Expr.Comparison.Op op) {
+      private void processComp(CompOp op) {
         Expr right = this.exprs.pop();
         Expr left = this.exprs.pop();
-        Expr expr = new Expr.Comparison(left, op, right);
+        Expr expr = new Expr.Comp(left, op, right);
         this.exprs.push(expr);
       }
 
@@ -489,33 +497,33 @@ public abstract class Ast {
       @Override
       public void exitBoolop(BX0Parser.BoolopContext ctx) {
         String opText = ctx.op.getText();
-        Expr.BoolOp.Op op = opText.equals("&&")
-          ? Expr.BoolOp.Op.AND : Expr.BoolOp.Op.OR;
+        BoolOp op = opText.equals("&&")
+          ? BoolOp.And : BoolOp.Or;
         this.processBoolOp(op);
       }
 
       @Override
       public void exitEq(BX0Parser.EqContext ctx) {
         String opText = ctx.op.getText();
-        Expr.Comparison.Op op = opText.equals("==")
-          ? Expr.Comparison.Op.EQ : Expr.Comparison.Op.NEQ;
-        this.processComparison(op);
+        CompOp op = opText.equals("==")
+          ? CompOp.Eq : CompOp.Neq;
+        this.processComp(op);
       }
 
       @Override
       public void exitLess(BX0Parser.LessContext ctx) {
         String opText = ctx.op.getText();
-        Expr.Comparison.Op op = opText.equals("<")
-          ? Expr.Comparison.Op.LT : Expr.Comparison.Op.LEQ;
-        this.processComparison(op);
+        CompOp op = opText.equals("<")
+          ? CompOp.Lt : CompOp.Leq;
+        this.processComp(op);
       }
 
       @Override
       public void exitGreater(BX0Parser.GreaterContext ctx) {
         String opText = ctx.op.getText();
-        Expr.Comparison.Op op = opText.equals(">")
-          ? Expr.Comparison.Op.GT : Expr.Comparison.Op.GEQ;
-        this.processComparison(op);
+        CompOp op = opText.equals(">")
+          ? CompOp.Gt : CompOp.Geq;
+        this.processComp(op);
       }
 
       @Override
@@ -535,7 +543,7 @@ public abstract class Ast {
         this.exprs.push(new Expr.BoolImm(bool));
       }
     }
-    
+
     /** Parse and return an AST for a BX0 program */
     public static Prog readProgram(String file) throws Exception {
       CharStream input = CharStreams.fromFileName(file);
@@ -561,13 +569,23 @@ public abstract class Ast {
 
     public static abstract class Instr {
       public abstract String toAmd64();
+      public abstract String toRtl();
+      public int inLabel = 0;
 
       public static class MoveImm extends Instr {
         public final Dest dest;
         public final int imm;
-        public MoveImm(Dest dest, int imm) {
+        public final int outLabel;
+        public MoveImm(int inLabel, Dest dest, int imm, int outLabel) {
           this.dest = dest;
           this.imm = imm;
+          this.inLabel = inLabel;
+          this.outLabel = outLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: move %d #%dq --> L%d",
+            this.inLabel, this.imm, this.dest.loc, this.outLabel);
         }
         @Override
         public String toAmd64() {
@@ -577,9 +595,17 @@ public abstract class Ast {
 
       public static class MoveCp extends Instr {
         public final Dest dest, source;
-        public MoveCp(Dest dest, Dest source) {
+        public final int outLabel;
+        public MoveCp(int inLabel, Dest dest, Dest source, int outLabel) {
           this.dest = dest;
           this.source = source;
+          this.inLabel = inLabel;
+          this.outLabel = outLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: copy #%dq #%dq --> L%d",
+            this.inLabel, this.source.loc, this.dest.loc, this.outLabel);
         }
         @Override
         public String toAmd64() {
@@ -591,11 +617,23 @@ public abstract class Ast {
       public static class MoveBinop extends Instr {
         public final Dest dest, leftArg, rightArg;
         public final Ast.Source.Binop op;
-        public MoveBinop(Dest dest, Dest leftArg, Ast.Source.Binop op, Dest rightArg) {
+        public final int outLabel;
+        public MoveBinop(int inLabel, Dest dest, Dest leftArg, Ast.Source.Binop op,
+          Dest rightArg, int outLabel) {
           this.dest = dest;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
           this.op = op;
+          // in and out labels should be 3 apart
+          this.inLabel = inLabel;
+          this.outLabel = outLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: copy #%dq ## --> L%d\nL%d: binop %s #%dq ## --> L%d\nL%d: copy ## #%dq --> L%d",
+            this.inLabel, this.leftArg.loc, this.inLabel + 1, this.inLabel + 1,
+            this.op.toString(), this.rightArg.loc, this.inLabel + 2, this.inLabel + 2,
+            this.dest.loc, this.outLabel);
         }
         @Override
         public String toAmd64() {
@@ -630,10 +668,22 @@ public abstract class Ast {
       public static class MoveUnop extends Instr {
         public final Dest dest, arg;
         public final Ast.Source.Unop op;
-        public MoveUnop(Dest dest, Ast.Source.Unop op, Dest arg) {
+        public final int outLabel;
+        public MoveUnop(int inLabel, Dest dest, Ast.Source.Unop op, Dest arg,
+          int outLabel) {
           this.dest = dest;
           this.arg = arg;
           this.op = op;
+          // in and out labels should be 3 apart
+          this.inLabel = inLabel;
+          this.outLabel = outLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: copy #%dq ## --> L%d\nL%d: unop %s ## --> L%d\nL%d: copy ## #%dq --> L%d",
+            this.inLabel, this.arg.loc, this.inLabel + 1, this.inLabel + 1,
+            this.op.toString(), this.inLabel + 2, this.inLabel + 2,
+            this.dest.loc, this.outLabel);
         }
         @Override
         public String toAmd64() {
@@ -642,10 +692,81 @@ public abstract class Ast {
         }
       }
 
+      public static class UBranch extends Instr {
+        public final Dest arg;
+        public final Ast.Source.CompOp op;
+        public final ArrayList<Integer> outLabels;
+        public UBranch(int inLabel, Ast.Source.CompOp op, Dest arg,
+          ArrayList<Integer> outLabels) {
+          this.op = op;
+          this.arg = arg;
+          this.inLabel = inLabel;
+          this.outLabels = outLabels;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: ubranch %s #%dq --> L%d, L%d",
+            this.inLabel, op.toString(), arg.loc, this.outLabels.get(0),
+            this.outLabels.get(1));
+        }
+        @Override
+        public String toAmd64() {
+          return String.format("AMD UBRANCH");
+        }
+      }
+
+      public static class BBranch extends Instr {
+        public final Dest leftArg, rightArg;
+        public final Ast.Source.CompOp op;
+        public final ArrayList<Integer> outLabels;
+        public BBranch(int inLabel, Dest leftArg, Ast.Source.CompOp op,
+          Dest rightArg, ArrayList<Integer> outLabels) {
+          this.leftArg = leftArg;
+          this.rightArg = rightArg;
+          this.op = op;
+          this.inLabel = inLabel;
+          this.outLabels = outLabels;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: bbranch %s #%dq #%dq --> L%d, L%d",
+            this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.outLabels.get(0),
+            this.outLabels.get(1));
+        }
+        @Override
+        public String toAmd64() {
+          return String.format("AMD BBRANCH");
+        }
+      }
+
+      public static class Goto extends Instr {
+        public final int outLabel;
+        public Goto(int inLabel, int outLabel) {
+          this.inLabel = inLabel;
+          this.outLabel = outLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: goto --> L%d", this.inLabel, this.outLabel);
+        }
+        @Override
+        public String toAmd64() {
+          return String.format("AMD GOTO");
+        }
+      }
+
       public static class Print extends Instr {
         public final Dest dest;
-        public Print(Dest dest) {
+        public final int outLabel;
+        public Print(int inLabel, Dest dest, int outLabel) {
           this.dest = dest;
+          this.inLabel = inLabel;
+          this.outLabel = outLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: call bx1_print(#%dq), ## --> L%d",
+            this.inLabel, this.dest.loc, this.outLabel);
         }
         @Override
         public String toAmd64() {
@@ -660,6 +781,10 @@ public abstract class Ast {
         public final String comment;
         public Comment(String comment) {
           this.comment = comment;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("; %s", this.comment);
         }
         @Override
         public String toAmd64() {
