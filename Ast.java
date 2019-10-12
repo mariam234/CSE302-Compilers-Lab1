@@ -91,7 +91,7 @@ public abstract class Ast {
         public final int value;
         public IntImm(int value) {
           this.value = value;
-          this.type = Types.int64Type;
+          this.type = Types.int64;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
@@ -106,7 +106,7 @@ public abstract class Ast {
         public final boolean isTrue;
         public BoolImm(boolean isTrue) {
           this.isTrue = isTrue;
-          this.type = Types.boolType;
+          this.type = Types.bool;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
@@ -142,7 +142,7 @@ public abstract class Ast {
         public UnopApp(Unop op, Expr arg) {
           this.op = op;
           this.arg = arg;
-          this.type = op == Unop.BoolNot ? Types.boolType : Types.int64Type;
+          this.type = op == Unop.BoolNot ? Types.bool : Types.int64;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
@@ -164,14 +164,14 @@ public abstract class Ast {
           this.op = op;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
-          this.type = Types.int64Type;
+          this.type = Types.int64;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
-          if (!leftType.equals(Types.int64Type)
-              || !rightType.equals(Types.int64Type)) {
+          if (!leftType.equals(Types.int64)
+              || !rightType.equals(Types.int64)) {
             raise(Error.InvalidTypeException);
           }
           return this.type;
@@ -191,14 +191,14 @@ public abstract class Ast {
           this.op = op;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
-          this.type = Types.boolType;
+          this.type = Types.bool;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
-          if (!leftType.equals(Types.boolType)
-              || !rightType.equals(Types.boolType)) {
+          if (!leftType.equals(Types.bool)
+              || !rightType.equals(Types.bool)) {
             raise(Error.InvalidTypeException);
           }
           return this.type;
@@ -216,14 +216,14 @@ public abstract class Ast {
           this.op = op;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
-          this.type = Types.boolType;
+          this.type = Types.bool;
         }
         @Override
         public Type typeCheck(Map<String,VarDecl> vars) {
           Type leftType = leftArg.typeCheck(vars);
           Type rightType = rightArg.typeCheck(vars);
           if (!leftType.equals(rightType)
-              || ((op != CompOp.Eq || op != CompOp.Neq) && !leftType.equals(Types.int64Type))) {
+              || ((op != CompOp.Eq || op != CompOp.Neq) && !leftType.equals(Types.int64))) {
             raise(Error.InvalidTypeException);
           }
           return this.type;
@@ -338,8 +338,8 @@ public abstract class Ast {
     }
 
     public static class Types {
-      public static final BasicType int64Type = new BasicType("int64", 64);
-      public static final BasicType boolType = new BasicType("bool", 1);
+      public static final BasicType int64 = new BasicType("int64", 64);
+      public static final BasicType bool = new BasicType("bool", 1);
     }
 
     public static class Prog {
@@ -378,7 +378,7 @@ public abstract class Ast {
       public void exitVarinit(BX0Parser.VarinitContext ctx) {
         String var = ctx.getChild(0).getText();
         Type type = ((BX0Parser.VardeclContext) ctx.getParent()).type()
-          .getText().equals("int64") ? Types.int64Type : Types.boolType;
+          .getText().equals("int64") ? Types.int64 : Types.bool;
         Expr initialValue = null;
         if (ctx.expr() != null) {
           initialValue = this.exprs.pop();
@@ -695,19 +695,18 @@ public abstract class Ast {
       public static class UBranch extends Instr {
         public final Dest arg;
         public final Ast.Source.CompOp op;
-        public final ArrayList<Integer> outLabels;
+        public final int trueOutLabel, falseOutLabel;
         public UBranch(int inLabel, Ast.Source.CompOp op, Dest arg,
-          ArrayList<Integer> outLabels) {
+          int trueOutLabel, int falseOutLabel) {
           this.op = op;
           this.arg = arg;
-          this.inLabel = inLabel;
-          this.outLabels = outLabels;
+          this.trueOutLabel, this.falseOutLabel = trueOutLabel, falseOutLabel;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: ubranch %s #%dq --> L%d, L%d",
-            this.inLabel, op.toString(), arg.loc, this.outLabels.get(0),
-            this.outLabels.get(1));
+            this.inLabel, op.toString(), arg.loc, this.trueOutLabel,
+            this.falseOutLabel);
         }
         @Override
         public String toAmd64() {
@@ -718,20 +717,19 @@ public abstract class Ast {
       public static class BBranch extends Instr {
         public final Dest leftArg, rightArg;
         public final Ast.Source.CompOp op;
-        public final ArrayList<Integer> outLabels;
+        public final int trueOutLabel, falseOutLabel;
         public BBranch(int inLabel, Dest leftArg, Ast.Source.CompOp op,
-          Dest rightArg, ArrayList<Integer> outLabels) {
+          Dest rightArg, int trueOutLabel, int falseOutLabel) {
           this.leftArg = leftArg;
           this.rightArg = rightArg;
           this.op = op;
-          this.inLabel = inLabel;
-          this.outLabels = outLabels;
+          this.trueOutLabel, this.falseOutLabel = trueOutLabel, falseOutLabel;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: bbranch %s #%dq #%dq --> L%d, L%d",
-            this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.outLabels.get(0),
-            this.outLabels.get(1));
+            this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.trueOutLabel,
+            this.falseOutLabel));
         }
         @Override
         public String toAmd64() {

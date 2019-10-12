@@ -56,14 +56,29 @@ public class Main {
     for (Ast.Source.Stmt stmt : progSource.statements) {
       if (stmt instanceof Ast.Source.Stmt.Move) {
         Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
+        if (move.source.getType() == Ast.Source.Types.int64) {
+          DestLabelPair res = RTLi(move.source, ???);
+
+        } else {
+          int Lt, Lf = mLabelCounter++, mLabelCounter++;
+          mInstrs.add(new Ast.Target.Instr.Move(Li, ))
+          int Li = RTLb(move.source, Lt, Lf);
+        }
         mVars.put(move.dest.var, genInstrsFromExpr(move.source));
-      } else if (stmt instanceof Ast.Source.Stmt.IfElse) {
+      }
+      else if (stmt instanceof Ast.Source.Stmt.IfElse) {
         Ast.Source.Stmt.IfElse ifElse = (Ast.Source.Stmt.IfElse) stmt;
         // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      } else if (stmt instanceof Ast.Source.Stmt.While) {
+      }
+      else if (stmt instanceof Ast.Source.Stmt.While) {
         Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
         // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      } else if (stmt instanceof Ast.Source.Stmt.Print) {
+      }
+      else if (stmt instanceof Ast.Source.Stmt.Block) {
+        Ast.Source.Stmt.Block block = (Ast.Source.Stmt.Block) stmt;
+        // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+      }
+      else if (stmt instanceof Ast.Source.Stmt.Print) {
         Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
         mInstrs.add(new Ast.Target.Instr.Print(RTL));
       }
@@ -109,7 +124,7 @@ public class Main {
 
   }
 
-  // takes in expr and outlabel; returns inlabel and dest where result was stored (bottom-up)
+  // takes in expr and outlabel; returns inlabel and result dest (bottom-up)
   private static DestLabelPair RTLi(Ast.Source.Expr expr, int Lo) {
     Ast.Target.Dest dest = new new Ast.Target.Dest(mVarCounter++);
     if (expr instanceof Ast.Source.Expr.IntImm) {
@@ -141,18 +156,39 @@ public class Main {
     return null;
   }
 
-  // takes in expr, true label, false label; returns inlabel and dest where result was stored (bottom-up)
+  // takes in expr, true outlabel, false outlabel; returns inlabel (bottom-up)
   private static int RTLb(Ast.Source.Expr expr, int Lt, int Lf) {
     if (expr instanceof Ast.Source.Expr.BoolImm) {
       Ast.Source.Expr.BoolImm boolImm = (Ast.Source.Expr.BoolImm) expr;
       return boolImm.isTrue ?  Lt : Lf;
     }
+    else if (expr instanceof Ast.Source.Expr.UnopApp) {
+      Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
+      return RTLb(unopApp.arg, Lf, Lt);
+    }
     else if (expr instanceof Ast.Source.Expr.BoolOpApp) {
       Ast.Source.Expr.BoolOpApp boolOpApp = (Ast.Source.Expr.BoolOpApp) expr;
-      return RTLb(expr, )
+      int L1 = RTLb(boolOpApp.rightArg, Lt, Lf);
+      return boolOpApp.op == Ast.Source.BoolOp.And
+          ? RTLb(boolOpApp.leftArg, L1, Lf) : RTLb(boolOpApp.leftArg, Lt, L1);
     }
     else if (expr instanceof Ast.Source.Expr.Comp) {
-      expr =
+      if (comp.leftArg.getType() == Ast.Source.Types.int64) {
+        int L1 = mLabelCounter++;
+        DestLabelPair rightRes = RTLi(comp.rightArg, L1);
+        DestLabelPair leftRes = RTLi(comp.leftArg, rightRes.inLabel);
+        Ast.Source.Expr.Comp comp = (Ast.Source.Expr.Comp) expr;
+        mInstrs.add(new Ast.Target.BBranch(L1, comp.op, leftArg.dest,
+          rightArg.dest, Lt, Lf));
+        return leftRes.inLabel;
+      } else {
+        // using equivalencies for boolean eq/neq
+        if (comp.op == Ast.Source.CompOp.Eq) {
+          return 0;
+        } else {
+          return 1;
+        }
+      }
     }
   }
 
