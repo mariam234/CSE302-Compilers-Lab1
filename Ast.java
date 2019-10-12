@@ -103,9 +103,9 @@ public abstract class Ast {
         }
       }
       public static final class BoolImm extends Expr {
-        public final boolean value;
-        public BoolImm(boolean value) {
-          this.value = value;
+        public final boolean isTrue;
+        public BoolImm(boolean isTrue) {
+          this.isTrue = isTrue;
           this.type = Types.boolType;
         }
         @Override
@@ -114,7 +114,7 @@ public abstract class Ast {
         }
         @Override
         public String toString() {
-          return Boolean.toString(this.value);
+          return Boolean.toString(this.isTrue);
         }
       }
       public static final class Read extends Expr {
