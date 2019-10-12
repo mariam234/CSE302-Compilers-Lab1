@@ -13,9 +13,10 @@ public class Main {
     for (String bxFile : args) {
       if (! bxFile.endsWith(".bx"))
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
-      System.out.println(Ast.Source.readProgram(bxFile).toString());
-      generateInstructions(Ast.Source.readProgram(bxFile));
-      Ast.Target.Prog progTarget = new Ast.Target.Prog(mInstrs);
+      Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile)
+      sourceProg.typeCheck();
+      RTLstmts(sourceProg.stmts);
+      Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
@@ -26,7 +27,7 @@ public class Main {
       out.println("\tpushq %rbp");
       out.println("\tmovq %rsp, %rbp");
       out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));
-      for (Ast.Target.Instr instr : progTarget.instructions) {
+      for (Ast.Target.Instr instr : targetProg.instructions) {
         out.println("\t" + instr.toRtl());
       }
       out.println("\tmovq %rbp, %rsp");
@@ -37,18 +38,6 @@ public class Main {
       String gccCmd = String.format("gcc -no-pie -o %s.exe %s bx0rt.c", stem, amd64File);
       Process gccProc = Runtime.getRuntime().exec(gccCmd);
       gccProc.waitFor();
-    }
-  }
-
-  private static void typeCheckProg(Ast.Source.Prog progSource) {
-    for (Ast.Source.Stmt stmt : progSource.stmts) {
-      if (stmt instanceof Ast.Source.Stmt.Move) {
-        Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
-        mVars.put(move.dest.var, genInstrsFromExpr(move.source));
-      } else if (stmt instanceof Ast.Source.Stmt.Print) {
-        Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
-        mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      }
     }
   }
 
@@ -64,8 +53,21 @@ public class Main {
     }
   }
 
-  private static int generateInstructions(ArrayList<Ast.Source.Stmt> stmts) {
+  private static class DestLabelPair {
+    public Dest Ast.Target.Source dest;
+    public int inLabel;
+    public Pair(Ast.Target.Source dest, int inLabel) {
+      this.dest = dest;
+      this.inLabel = inLabel;
+    }
+  }
 
+  private static int RTLstmts(ArrayList<Ast.Source.Stmt> stmts, int Lo) {
+    if (stmts.isEmpty()) {
+      return mLabelCounter;
+    }
+    int Li = RTLs(stmts.remove(stmts.size() - 1), Lo);
+    RTLstmts(stmts, Li);
   }
 
   // returns in label
@@ -89,29 +91,38 @@ public class Main {
     }
     else if (stmt instanceof Ast.Source.Stmt.IfElse) {
       Ast.Source.Stmt.IfElse ifElse = (Ast.Source.Stmt.IfElse) stmt;
-      int Li
-      // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+      int Lt = RTLstmts(ifElse.thenBranch, Lo);
+      int Lf = RTLstmts(ifElse.elseBranch, Lo);
+      return RTLb(ifElse.condition, Lt, Lf) ;
     }
     else if (stmt instanceof Ast.Source.Stmt.While) {
       Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
-      // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+      int Lt = RTLstmts(whileStmt.body, Lo);
+      int Lend = mLabelCounter++;
+      int Li RTLb(whileStmt.condition, Lend, Lo);
+      mInstrs.add(new Ast.Target.Instr.Goto(Lend, Li));
+      return Li;
     }
     else if (stmt instanceof Ast.Source.Stmt.Block) {
       Ast.Source.Stmt.Block block = (Ast.Source.Stmt.Block) stmt;
-      for (List<Ast.Source.Stmt> stmt : block.stmts) {
-        int Li = RTLs(stmt, ??);
-      }
+      return RTLstmts(block.stmts, Lo);
     }
     else if (stmt instanceof Ast.Source.Stmt.Print) {
       Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
       if (print.arg.getType() == Ast.Source.Types.int64) {
         DestLabelPair res = RTLi(print.arg, Lo);
-        mInstrs.add(new Ast.Target.Instr.Print(RTL));
+        mInstrs.add(new Ast.Target.Instr.Print(res.inLabel, res.dest, Lo));
         return res.inLabel;
       } else {
-
+        int Lt, Lf = mLabelCounter++, mLabelCounter++;
+        Ast.Target.Instr.Dest dest = mVarCounter++;
+        mInstrs.add(new Ast.Target.Instr.Print(Lt, 0, dest, Lo))
+        mInstrs.add(new Ast.Target.Instr.Print(Lf, 1, dest, Lo))
+        int Li = RTLb(print.arg, Lt, Lf);
+        return Li;
       }
     }
+    return -1;
   }
 
   // helper function for generateInstructions
@@ -138,19 +149,6 @@ public class Main {
         dest, leftDest, binopApp.op, rightDest));
     }
     return dest;
-  }
-
-  private static class DestLabelPair {
-    public Dest Ast.Target.Source dest;
-    public int inLabel;
-    public Pair(Ast.Target.Source dest, int inLabel) {
-      this.dest = dest;
-      this.inLabel = inLabel;
-    }
-  }
-
-  private static int RTL() {
-
   }
 
   // takes in expr and outlabel; returns inlabel and result dest (bottom-up)
@@ -213,9 +211,9 @@ public class Main {
       } else {
         // using equivalencies for boolean eq/neq
         if (comp.op == Ast.Source.CompOp.Eq) {
-          return 0;
+          return -1;
         } else {
-          return 1;
+          return -2;
         }
       }
     }
