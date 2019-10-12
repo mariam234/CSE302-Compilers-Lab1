@@ -237,12 +237,24 @@ public abstract class Ast {
     } // Expr
 
     public static abstract class Stmt {
+      public abstract void typeCheck();
+
       public static final class Move extends Stmt {
         public final Dest dest;
         public final Expr source;
         public Move(Dest dest, Expr source) {
           this.dest = dest;
           this.source = source;
+        }
+        @Override
+        public void typeCheck(Map<String,VarDecl> vars) {
+          VarDecl varDecl = vars.get(dest.var);
+          if (varDecl == null) {
+            raise(Errors.UndeclaredVarException);
+          }
+          if (source.typeCheck() != varDecl.type) {
+            raise(Errors.InvalidTypeException);
+          }
         }
         @Override
         public String toString() {
@@ -253,6 +265,10 @@ public abstract class Ast {
         public final Expr arg;
         public Print(Expr arg) {
           this.arg = arg;
+        }
+        @Override
+        public void typeCheck(Map<String,VarDecl> vars) {
+          arg.typeCheck(vars);
         }
         @Override
         public String toString() {
@@ -268,6 +284,18 @@ public abstract class Ast {
           this.condition = condition;
           this.thenBranch = thenBranch;
           this.elseBranch = elseBranch;
+        }
+        @Override
+        public void typeCheck(Map<String,VarDecl> vars) {
+          if (condition.typeCheck() != Types.bool) {
+            raise(Errors.InvalidTypeException);
+          }
+          for (Stmt stmt : this.thenBranch) {
+            stmt.typeCheck(vars);
+          }
+          for (Stmt stmt : this.elseBranch) {
+            stmt.typeCheck(vars);
+          }
         }
         @Override
         public String toString() {
@@ -286,6 +314,15 @@ public abstract class Ast {
           this.body = body;
         }
         @Override
+        public void typeCheck(Map<String,VarDecl> vars) {
+          if (condition.typeCheck() != Types.bool) {
+            raise(Errors.InvalidTypeException);
+          }
+          for (Stmt stmt : this.body) {
+            stmt.typeCheck(vars);
+          }
+        }
+        @Override
         public String toString() {
           return String.format("while (%s) do (%s)",
           this.condition, this.body.toString());
@@ -299,22 +336,25 @@ public abstract class Ast {
         public void addStmt(Stmt stmt) {
           stmts.add(stmt);
         }
+        @Override
+        public void typeCheck(Map<String,VarDecl> vars) {
+          for (Stmt stmt : this.stmts) {
+            stmt.typeCheck(vars);
+          }
+        }
       }
     } // Stmt
 
     public static class VarDecl {
       public final Type type;
       public Expr initialValue;
-      public final int order;
-      public VarDecl(Type type, Expr initialValue, int order) {
+      public VarDecl(Type type, Expr initialValue) {
         this.type = type;
         this.initialValue = initialValue;
-        this.order = order;
       }
       @Override public String toString() {
-        return String.format("(%s, %s, %d)",
-          type.toString(), initialValue == null ? "NO_INIT" : initialValue.toString(),
-          order);
+        return String.format("(%s, %s)",
+          type.toString(), initialValue == null ? "NO_INIT" : initialValue.toString());
       }
     }
 
@@ -344,10 +384,25 @@ public abstract class Ast {
 
     public static class Prog {
       public final Map<String,VarDecl> vars;
-      public final List<Stmt> statements;
-      public Prog(List<Stmt> statements, Map<String, VarDecl> vars) {
-        this.statements = statements;
+      public final List<Stmt> stmts;
+      public Prog(List<Stmt> stmts, Map<String, VarDecl> vars) {
+        this.stmts = stmts;
         this.vars = vars;
+      }
+      public void typeCheck() {
+        for (Stmt stmt : this.body) {
+          stmt.typeCheck(this.vars);
+        }
+      }
+      public void collectInitials() {
+        List<Stmt> moveStmts = new ArrayList<>();
+        for (Map.Entry<String,VarDecl> varEntry : vars.entrySet())   {
+          if (varDecl.initialValue != null) {
+            moveStmts.add(new Stmt.Move(varEntry.getKey(),
+                                        varEntry.getValue().initialValue));
+          }
+        }
+        this.stmts.addAll(0, moveStmts);
       }
       @Override
       public String toString() {
@@ -355,8 +410,9 @@ public abstract class Ast {
         for (Map.Entry<String,VarDecl> varEntry : vars.entrySet())   {
           str += varEntry.getKey() + " -> " + varEntry.getValue().toString() + "\n";
         }
-        for (Stmt stmt : this.statements)
+        for (Stmt stmt : this.statements) {
           str += stmt.toString() + ";\n";
+        }
         return str;
       }
     }
@@ -364,10 +420,9 @@ public abstract class Ast {
     // Source code parser
     public static class SourceCreator extends BX0BaseListener {
       private Stack<Ast.Source.Stmt> stmts = new Stack<>();
-      private Map<String, VarDecl> vars = new HashMap<>();
+      private Map<String, VarDecl> vars = new LinkedHashMap<>();
       private Stack<Expr> exprs = new Stack<>();
       private Prog prog = null;
-      private int varCounter = 0;
 
       @Override
       public void exitProgram(BX0Parser.ProgramContext ctx) {
@@ -383,7 +438,7 @@ public abstract class Ast {
         if (ctx.expr() != null) {
           initialValue = this.exprs.pop();
         }
-        vars.put(var, new VarDecl(type, initialValue, varCounter++));
+        vars.put(var, new VarDecl(type, initialValue));
       }
 
       @Override

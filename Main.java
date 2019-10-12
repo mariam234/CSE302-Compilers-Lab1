@@ -40,8 +40,8 @@ public class Main {
     }
   }
 
-  private static void generateInstructions(Ast.Source.Prog progSource) {
-    for (Ast.Source.Stmt stmt : progSource.statements) {
+  private static void typeCheckProg(Ast.Source.Prog progSource) {
+    for (Ast.Source.Stmt stmt : progSource.stmts) {
       if (stmt instanceof Ast.Source.Stmt.Move) {
         Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
         mVars.put(move.dest.var, genInstrsFromExpr(move.source));
@@ -53,34 +53,63 @@ public class Main {
   }
 
   private static void generateInstructions(Ast.Source.Prog progSource) {
-    for (Ast.Source.Stmt stmt : progSource.statements) {
+    for (Ast.Source.Stmt stmt : progSource.stmts) {
       if (stmt instanceof Ast.Source.Stmt.Move) {
         Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
-        if (move.source.getType() == Ast.Source.Types.int64) {
-          DestLabelPair res = RTLi(move.source, ???);
-
-        } else {
-          int Lt, Lf = mLabelCounter++, mLabelCounter++;
-          mInstrs.add(new Ast.Target.Instr.Move(Li, ))
-          int Li = RTLb(move.source, Lt, Lf);
-        }
         mVars.put(move.dest.var, genInstrsFromExpr(move.source));
-      }
-      else if (stmt instanceof Ast.Source.Stmt.IfElse) {
-        Ast.Source.Stmt.IfElse ifElse = (Ast.Source.Stmt.IfElse) stmt;
-        // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      }
-      else if (stmt instanceof Ast.Source.Stmt.While) {
-        Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
-        // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      }
-      else if (stmt instanceof Ast.Source.Stmt.Block) {
-        Ast.Source.Stmt.Block block = (Ast.Source.Stmt.Block) stmt;
-        // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-      }
-      else if (stmt instanceof Ast.Source.Stmt.Print) {
+      } else if (stmt instanceof Ast.Source.Stmt.Print) {
         Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
+        mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+      }
+    }
+  }
+
+  private static int generateInstructions(ArrayList<Ast.Source.Stmt> stmts) {
+
+  }
+
+  // returns in label
+  private static int RTLs(Ast.Source.Stmt stmt, int Lo) {
+    if (stmt instanceof Ast.Source.Stmt.Move) {
+      Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
+      if (move.source.getType() == Ast.Source.Types.int64) {
+        DestLabelPair res = RTLi(move.source, Lo);
+        mVars.put(move.dest.var, res.dest);
+        return res.inLabel;
+      } else {
+        int Lt, Lf = mLabelCounter++, mLabelCounter++;
+        // create new dest or use old one from looking up if exists?
+        Ast.Target.Instr.Dest dest = mVarCounter++;
+        mInstrs.add(new Ast.Target.Instr.MoveImm(Lt, 0, dest, Lo))
+        mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, 1, dest, Lo))
+        int Li = RTLb(move.source, Lt, Lf);
+        mVars.put(move.dest.var, dest);
+        return Li;
+      }
+    }
+    else if (stmt instanceof Ast.Source.Stmt.IfElse) {
+      Ast.Source.Stmt.IfElse ifElse = (Ast.Source.Stmt.IfElse) stmt;
+      int Li
+      // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+    }
+    else if (stmt instanceof Ast.Source.Stmt.While) {
+      Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
+      // mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
+    }
+    else if (stmt instanceof Ast.Source.Stmt.Block) {
+      Ast.Source.Stmt.Block block = (Ast.Source.Stmt.Block) stmt;
+      for (List<Ast.Source.Stmt> stmt : block.stmts) {
+        int Li = RTLs(stmt, ??);
+      }
+    }
+    else if (stmt instanceof Ast.Source.Stmt.Print) {
+      Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
+      if (print.arg.getType() == Ast.Source.Types.int64) {
+        DestLabelPair res = RTLi(print.arg, Lo);
         mInstrs.add(new Ast.Target.Instr.Print(RTL));
+        return res.inLabel;
+      } else {
+
       }
     }
   }
