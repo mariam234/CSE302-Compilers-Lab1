@@ -16,6 +16,12 @@ public class Main {
       Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile);
       System.out.println(sourceProg.toString());
       RTLstmts(sourceProg.stmts, 0);
+      System.out.println(String.format("enter L0\nexit L%d\n----", mLabelCounter + 2));
+      for (Ast.Target.Instr instr : mInstrs) {
+        System.out.println(instr.toRtl());
+      }
+      System.out.println(String.format("L%d: move 0, #0q --> L%d\nL%d: return #0q",
+        mLabelCounter + 1, mLabelCounter + 2, mLabelCounter + 2));
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
@@ -28,7 +34,7 @@ public class Main {
       out.println("\tmovq %rsp, %rbp");
       out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));
       for (Ast.Target.Instr instr : targetProg.instructions) {
-        out.println("\t" + instr.toRtl());
+        out.println("\t" + instr.toAmd64());
       }
       out.println("\tmovq %rbp, %rsp");
       out.println("\tpopq %rbp");
@@ -89,11 +95,15 @@ public class Main {
   }
 
   private static int RTLstmts(List<Ast.Source.Stmt> stmts, int Lo) {
-    if (stmts.isEmpty()) {
-      return mLabelCounter;
+    int Li = Lo;
+    int L1 = mLabelCounter;
+    for (Ast.Source.Stmt stmt : stmts) {
+      L1 = RTLs(stmt, L1);
+      if (stmt == stmts.get(0)) {
+        Li = L1;
+      }
     }
-    int Li = RTLs(stmts.remove(stmts.size() - 1), Lo);
-    return RTLstmts(stmts, Li);
+   return Li;
   }
 
   // returns in label
@@ -103,6 +113,7 @@ public class Main {
       if (move.source.getType() == Ast.Source.Types.int64) {
         DestLabelPair res = RTLi(move.source, Lo);
         mVars.put(move.dest.var, res.dest);
+        // System.out.println(String.format("added (%s, %d) to mVars", move.dest.var, res.dest.loc));
         return res.inLabel;
       } else {
         int Lt = mLabelCounter++;
@@ -113,6 +124,7 @@ public class Main {
         mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, dest, 1, Lo));
         int Li = RTLb(move.source, Lt, Lf);
         mVars.put(move.dest.var, dest);
+        // System.out.println(String.format("added (%s, %d) to mVars", move.dest.var, dest.loc));
         return Li;
       }
     }

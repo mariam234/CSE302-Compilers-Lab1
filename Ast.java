@@ -329,7 +329,7 @@ public abstract class Ast {
           this.stmts = new ArrayList<Stmt>();
         }
         public void addStmt(Stmt stmt) {
-          stmts.add(stmt);
+          stmts.add(0, stmt);
         }
         @Override
         public void typeCheck(Map<String,VarDecl> vars) {
@@ -637,7 +637,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: move %d #%dq --> L%d",
+          return String.format("L%d: move %d, #%dq --> L%d",
             this.inLabel, this.imm, this.dest.loc, this.outLabel);
         }
         @Override
@@ -657,7 +657,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: copy #%dq #%dq --> L%d",
+          return String.format("L%d: copy #%dq, #%dq --> L%d",
             this.inLabel, this.source.loc, this.dest.loc, this.outLabel);
         }
         @Override
@@ -682,7 +682,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: copy #%dq ## --> L%d\nL%d: binop %s #%dq ## --> L%d\nL%d: copy ## #%dq --> L%d",
+          return String.format("L%d: copy #%dq, ## --> L%d\nL%d: binop %s, #%dq, ## --> L%d\nL%d: copy ##, #%dq --> L%d",
             this.inLabel, this.leftArg.loc, this.inLabel + 1, this.inLabel + 1,
             this.op.toString(), this.rightArg.loc, this.inLabel + 2, this.inLabel + 2,
             this.dest.loc, this.outLabel);
@@ -731,7 +731,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: copy #%dq ## --> L%d\nL%d: unop %s ## --> L%d\nL%d: copy ## #%dq --> L%d",
+          return String.format("L%d: copy #%dq, ## --> L%d\nL%d: unop %s, ## --> L%d\nL%d: copy ##, #%dq --> L%d",
             this.inLabel, this.arg.loc, this.inLabel + 1, this.inLabel + 1,
             this.op.toString(), this.inLabel + 2, this.inLabel + 2,
             this.dest.loc, this.outLabel);
@@ -757,7 +757,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: ubranch %s #%dq --> L%d, L%d",
+          return String.format("L%d: ubranch %s, #%dq --> L%d, L%d",
             this.inLabel, op.toString(), arg.loc, this.trueOutLabel,
             this.falseOutLabel);
         }
@@ -782,7 +782,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: bbranch %s #%dq #%dq --> L%d, L%d",
+          return String.format("L%d: bbranch %s, #%dq, #%dq --> L%d, L%d",
             this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.trueOutLabel,
             this.falseOutLabel);
         }
