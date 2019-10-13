@@ -1,4 +1,3 @@
-var x = 10 : int64;
-var y = true : bool;
-print (x + 10);
-print (y && false);
+var y = false : bool;
+print (true && y);
+print (false || y);

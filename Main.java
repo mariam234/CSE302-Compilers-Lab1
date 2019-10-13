@@ -7,6 +7,7 @@ public class Main {
   private static int mVarCounter = 0;
   private static int mLabelCounter = 0;
   private static HashMap<String, Ast.Target.Dest> mVars = new HashMap<>();
+  private static HashMap<Integer, Integer> mLabelChanges = new HashMap<>();
   private static List<Ast.Target.Instr> mInstrs = new ArrayList<>();
 
   public static void main(String[] args) throws Exception {
@@ -15,14 +16,14 @@ public class Main {
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
       Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile);
       System.out.println(sourceProg.toString());
-      RTLstmts(sourceProg.stmts, 0);
-      System.out.println(String.format("enter L0\nexit L%d\n----", mLabelCounter + 1));
-      for (Ast.Target.Instr instr : mInstrs) {
+      int Lend = RTLstmts(sourceProg.stmts, 0);
+      mInstrs.add(new Ast.Target.Instr.Return(Lend));
+      Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
+      targetProg.replaceLabels(mLabelChanges);
+      System.out.println(String.format("enter L0\nexit L%d\n----", Lend + 1));
+      for (Ast.Target.Instr instr : targetProg.instructions) {
         System.out.println(instr.toRtl());
       }
-      System.out.println(String.format("L%d: move 0, #0q --> L%d\nL%d: return #0q",
-        mLabelCounter, mLabelCounter + 1, mLabelCounter + 1));
-      Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
@@ -87,154 +88,216 @@ public class Main {
 
   private static class DestLabelPair {
     public Ast.Target.Dest dest;
-    public int inLabel;
-    public DestLabelPair(Ast.Target.Dest dest, int inLabel) {
+    public int outLabel;
+    public DestLabelPair(Ast.Target.Dest dest, int outLabel) {
       this.dest = dest;
-      this.inLabel = inLabel;
+      this.outLabel = outLabel;
     }
   }
 
-  private static int RTLstmts(List<Ast.Source.Stmt> stmts, int Lo) {
-    int Li = Lo;
-    int L1 = mLabelCounter;
+  private static class TrueFalseLabels {
+    public int trueLabel;
+    public int falseLabel;
+    public TrueFalseLabels(int trueLabel, int falseLabel) {
+      this.trueLabel = trueLabel;
+      this.falseLabel = falseLabel;
+    }
+    public TrueFalseLabels reverse() {
+      int temp = this.trueLabel;
+      this.trueLabel = this.falseLabel;
+      this.falseLabel = temp;
+      return this;
+    }
+  }
+
+  private static int RTLstmts(List<Ast.Source.Stmt> stmts, int Li) {
+    int Lo = Li;
     for (Ast.Source.Stmt stmt : stmts) {
-      L1 = RTLs(stmt, L1);
-      if (stmt == stmts.get(0)) {
-        Li = L1;
-      }
+      Lo = RTLs(stmt, Lo);
     }
-   return Li;
+   return Lo;
   }
 
-  // returns in label
-  private static int RTLs(Ast.Source.Stmt stmt, int Lo) {
+  // returns out label
+  private static int RTLs(Ast.Source.Stmt stmt, int Li) {
     if (stmt instanceof Ast.Source.Stmt.Move) {
       Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
+      Ast.Target.Dest sourceDest;
+      int Lo;
       if (move.source.getType() == Ast.Source.Types.int64) {
-        DestLabelPair res = RTLi(move.source, Lo);
-        mVars.put(move.dest.var, res.dest);
-        // System.out.println(String.format("added (%s, %d) to mVars", move.dest.var, res.dest.loc));
-        return res.inLabel;
+        DestLabelPair res = RTLi(move.source, Li);
+        Lo = res.outLabel;
+        sourceDest = res.dest;
       } else {
-        int Lt = mLabelCounter++;
-        int Lf = mLabelCounter++;
-        // create new dest or use old one from looking up if exists?
-        Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
-        mInstrs.add(new Ast.Target.Instr.MoveImm(Lt, dest, 0, Lo));
-        mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, dest, 1, Lo));
-        int Li = RTLb(move.source, Lt, Lf);
-        mVars.put(move.dest.var, dest);
-        // System.out.println(String.format("added (%s, %d) to mVars", move.dest.var, dest.loc));
-        return Li;
+        TrueFalseLabels res = RTLb(move.source, Li);
+        Lo = ++mLabelCounter;
+        sourceDest = new Ast.Target.Dest(mVarCounter++);
+        mInstrs.add(new Ast.Target.Instr.MoveImm(res.trueLabel, sourceDest, 1, Lo));
+        mInstrs.add(new Ast.Target.Instr.MoveImm(res.falseLabel, sourceDest, 0, Lo));
       }
+      Ast.Target.Dest targetDest = mVars.get(move.dest.var);
+      if (targetDest == null && mVars.containsValue(sourceDest)) {
+        Ast.Target.Dest freshDest = new Ast.Target.Dest(mVarCounter++);
+        mVars.put(move.dest.var, freshDest);
+        Lo = ++mLabelCounter;
+        mInstrs.add(new Ast.Target.Instr.MoveCp(Lo - 1, freshDest, sourceDest, Lo));
+      } else if (targetDest == null) {
+        mVars.put(move.dest.var, sourceDest);
+      } else {
+        Lo = ++mLabelCounter;
+        mInstrs.add(new Ast.Target.Instr.MoveCp(Lo - 1, targetDest, sourceDest, Lo));
+      }
+      return Lo;
     }
     else if (stmt instanceof Ast.Source.Stmt.IfElse) {
       Ast.Source.Stmt.IfElse ifElse = (Ast.Source.Stmt.IfElse) stmt;
-      int Lt = RTLstmts(ifElse.thenBranch, Lo);
-      int Lf = RTLstmts(ifElse.elseBranch, Lo);
-      return RTLb(ifElse.condition, Lt, Lf) ;
+      TrueFalseLabels res = RTLb(ifElse.condition, Li);
+      int Lo = RTLstmts(ifElse.thenBranch, res.trueLabel);
+      // change last instruction to have correct outLabel
+      if (ifElse.elseBranch != null && !ifElse.elseBranch.isEmpty()) {
+        int L1 = RTLstmts(ifElse.elseBranch, res.falseLabel);
+        mLabelChanges.put(L1, Lo);
+      } else if (!ifElse.thenBranch.isEmpty()) {
+        mLabelChanges.put(Lo, res.falseLabel);
+        Lo = res.falseLabel;
+      }
+      return Lo;
     }
     else if (stmt instanceof Ast.Source.Stmt.While) {
       Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
-      int Lt = RTLstmts(whileStmt.body, Lo);
-      int Lend = mLabelCounter++;
-      int Li = RTLb(whileStmt.condition, Lend, Lo);
-      mInstrs.add(new Ast.Target.Instr.Goto(Lend, Li));
-      return Li;
+      System.out.println(Li);
+      TrueFalseLabels res = RTLb(whileStmt.condition, Li);
+      int Lo = RTLstmts(whileStmt.body, res.trueLabel);
+      mInstrs.add(new Ast.Target.Instr.Goto(Lo, Li));
+      System.out.println(Lo + " " + Li);
+      return res.falseLabel;
     }
     else if (stmt instanceof Ast.Source.Stmt.Block) {
       Ast.Source.Stmt.Block block = (Ast.Source.Stmt.Block) stmt;
-      return RTLstmts(block.stmts, Lo);
+      return RTLstmts(block.stmts, Li);
     }
     else if (stmt instanceof Ast.Source.Stmt.Print) {
       Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
       if (print.arg.getType() == Ast.Source.Types.int64) {
-        DestLabelPair res = RTLi(print.arg, Lo);
-        mInstrs.add(new Ast.Target.Instr.Print(res.inLabel, res.dest, Lo));
-        return res.inLabel;
+        DestLabelPair res = RTLi(print.arg, Li);
+        int L1 = ++mLabelCounter;
+        mInstrs.add(new Ast.Target.Instr.Print(res.outLabel, res.dest, L1));
+        return L1;
       } else {
-        int Lt = mLabelCounter++;
-        int Lf = mLabelCounter++;
+        TrueFalseLabels res = RTLb(print.arg, Li);
         Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
-        mInstrs.add(new Ast.Target.Instr.MoveImm(Lt, dest, 0, Lo));
-        mInstrs.add(new Ast.Target.Instr.MoveImm(Lf, dest, 1, Lo));
-        int Li = RTLb(print.arg, Lt, Lf);
-        return Li;
+        int L1 = ++mLabelCounter;
+        int L2 = ++mLabelCounter;
+        mInstrs.add(new Ast.Target.Instr.MoveImm(res.trueLabel, dest, 1, L1));
+        mInstrs.add(new Ast.Target.Instr.MoveImm(res.falseLabel, dest, 0, L1));
+        mInstrs.add(new Ast.Target.Instr.Print(L1, dest, L2));
+        return L2;
       }
     }
     return -1;
   }
 
-  // takes in expr and outlabel; returns inlabel and result dest (bottom-up)
-  private static DestLabelPair RTLi(Ast.Source.Expr expr, int Lo) {
+  // takes in expr and inlabel; returns result dest and outLabel (bottom-up)
+  private static DestLabelPair RTLi(Ast.Source.Expr expr, int Li) {
     if (expr instanceof Ast.Source.Expr.IntImm) {
       Ast.Source.Expr.IntImm intImm = (Ast.Source.Expr.IntImm) expr;
       Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
-      mInstrs.add(new Ast.Target.Instr.MoveImm(mLabelCounter++, dest, intImm.value, Lo));
-      return new DestLabelPair(dest, mLabelCounter);
+      int Lo = ++mLabelCounter;
+      mInstrs.add(new Ast.Target.Instr.MoveImm(Li, dest, intImm.value, Lo));
+      return new DestLabelPair(dest, Lo);
     }
     else if (expr instanceof Ast.Source.Expr.Read) {
       Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
-      Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
-      mInstrs.add(new Ast.Target.Instr.MoveCp(mLabelCounter++, dest, lookup(read.dest.var), Lo));
-      return new DestLabelPair(dest, mLabelCounter);
+      return new DestLabelPair(lookup(read.dest.var), Li);
     }
     else if (expr instanceof Ast.Source.Expr.UnopApp) {
       Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
       Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
-      int L1 = mLabelCounter++;
-      DestLabelPair argRes = RTLi(unopApp.arg, L1);
-      mInstrs.add(new Ast.Target.Instr.MoveUnop(L1, dest, unopApp.op, argRes.dest, Lo));
-      return new DestLabelPair(dest, argRes.inLabel);
+      DestLabelPair argRes = RTLi(unopApp.arg, Li);
+      int Lo = ++mLabelCounter;
+      mInstrs.add(new Ast.Target.Instr.MoveUnop(
+        argRes.outLabel, dest, unopApp.op, argRes.dest, Lo));
+      return new DestLabelPair(dest, Lo);
     }
     else if (expr instanceof Ast.Source.Expr.BinopApp) {
       Ast.Source.Expr.BinopApp binopApp = (Ast.Source.Expr.BinopApp) expr;
       Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
-      int L1 = mLabelCounter++;
-      DestLabelPair rightRes = RTLi(binopApp.rightArg, L1);
-      DestLabelPair leftRes = RTLi(binopApp.leftArg, rightRes.inLabel);
+      DestLabelPair leftRes = RTLi(binopApp.leftArg, Li);
+      DestLabelPair rightRes = RTLi(binopApp.rightArg, leftRes.outLabel);
+      int Lo = ++mLabelCounter;
       mInstrs.add(new Ast.Target.Instr.MoveBinop(
-        L1, dest, leftRes.dest, binopApp.op, rightRes.dest, Lo));
-      return new DestLabelPair(dest, leftRes.inLabel);
+        rightRes.outLabel, dest, leftRes.dest, binopApp.op, rightRes.dest, Lo));
+      return new DestLabelPair(dest, Lo);
     }
     return null;
   }
 
-  // takes in expr, true outlabel, false outlabel; returns inlabel (bottom-up)
-  private static int RTLb(Ast.Source.Expr expr, int Lt, int Lf) {
+  // takes in expr and inlabel; returns true and false outLabels (bottom-up)
+  private static TrueFalseLabels RTLb(Ast.Source.Expr expr, int Li) {
     if (expr instanceof Ast.Source.Expr.BoolImm) {
       Ast.Source.Expr.BoolImm boolImm = (Ast.Source.Expr.BoolImm) expr;
-      return boolImm.isTrue ?  Lt : Lf;
+      return boolImm.isTrue ? new TrueFalseLabels(Li, ++mLabelCounter)
+        : new TrueFalseLabels(++mLabelCounter, Li);
+    }
+    else if (expr instanceof Ast.Source.Expr.Read) {
+      Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
+      TrueFalseLabels ret = new TrueFalseLabels(++mLabelCounter, ++mLabelCounter);
+      // jump to true label if not zero, otherwise jump to false label
+      mInstrs.add(new Ast.Target.Instr.UBranch(Li, Ast.Source.CompOp.Neq,
+        lookup(read.dest.var), ret.trueLabel, ret.falseLabel));
+      return ret;
     }
     else if (expr instanceof Ast.Source.Expr.UnopApp) {
       Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
-      return RTLb(unopApp.arg, Lf, Lt);
+      return RTLb(unopApp.arg, Li).reverse();
     }
     else if (expr instanceof Ast.Source.Expr.BoolOpApp) {
       Ast.Source.Expr.BoolOpApp boolOpApp = (Ast.Source.Expr.BoolOpApp) expr;
-      int L1 = RTLb(boolOpApp.rightArg, Lt, Lf);
-      return boolOpApp.op == Ast.Source.BoolOp.And
-          ? RTLb(boolOpApp.leftArg, L1, Lf) : RTLb(boolOpApp.leftArg, Lt, L1);
+      TrueFalseLabels leftRes = RTLb(boolOpApp.leftArg, Li);
+      if (boolOpApp.op == Ast.Source.BoolOp.And) {
+        TrueFalseLabels rightRes = RTLb(boolOpApp.rightArg, leftRes.trueLabel);
+        // make sure equivalent cases end up at same place
+        mLabelChanges.put(rightRes.falseLabel, leftRes.falseLabel);
+        return new TrueFalseLabels(rightRes.trueLabel, leftRes.falseLabel);
+      } else {
+        TrueFalseLabels rightRes = RTLb(boolOpApp.rightArg, leftRes.falseLabel);
+        mLabelChanges.put(rightRes.trueLabel, leftRes.trueLabel);
+        return new TrueFalseLabels(leftRes.trueLabel, rightRes.falseLabel);
+      }
     }
     else if (expr instanceof Ast.Source.Expr.Comp) {
       Ast.Source.Expr.Comp comp = (Ast.Source.Expr.Comp) expr;
       if (comp.leftArg.getType() == Ast.Source.Types.int64) {
-        int L1 = mLabelCounter++;
-        DestLabelPair rightRes = RTLi(comp.rightArg, L1);
-        DestLabelPair leftRes = RTLi(comp.leftArg, rightRes.inLabel);
-        mInstrs.add(new Ast.Target.Instr.BBranch(L1, leftRes.dest, comp.op,
-          rightRes.dest, Lt, Lf));
-        return leftRes.inLabel;
+        DestLabelPair leftRes = RTLi(comp.leftArg, Li);
+        DestLabelPair rightRes = RTLi(comp.rightArg, leftRes.outLabel);
+        TrueFalseLabels ret = new TrueFalseLabels(++mLabelCounter, ++mLabelCounter);
+        mInstrs.add(new Ast.Target.Instr.BBranch(rightRes.outLabel, leftRes.dest,
+          comp.op, rightRes.dest, ret.trueLabel, ret.falseLabel));
+        return ret;
       } else {
-        // using equivalencies for boolean eq/neq
         if (comp.op == Ast.Source.CompOp.Eq) {
-          return -2;
-        } else {
-          return -3;
+          // (e1 == e2) ≡ (e1 && e2) || ! (e1 || e2)
+          Ast.Source.Expr e1 = new Ast.Source.Expr.BoolOpApp(
+            comp.leftArg, Ast.Source.BoolOp.And, comp.rightArg);
+          Ast.Source.Expr e2 = new Ast.Source.Expr.BoolOpApp(
+            comp.leftArg, Ast.Source.BoolOp.Or, comp.rightArg);
+          Ast.Source.Expr e3 = new Ast.Source.Expr.UnopApp(Ast.Source.Unop.BoolNot, e2);
+          Ast.Source.Expr e4 = new Ast.Source.Expr.BoolOpApp(e1, Ast.Source.BoolOp.Or, e3);
+          return RTLb(e4, Li);
+        }
+        else {
+          // (e1 != e2) ≡ ! (e1 && e2) && (e1 || e2)
+          Ast.Source.Expr e1 = new Ast.Source.Expr.BoolOpApp(
+            comp.leftArg, Ast.Source.BoolOp.And, comp.rightArg);
+          Ast.Source.Expr e2 = new Ast.Source.Expr.BoolOpApp(
+            comp.leftArg, Ast.Source.BoolOp.Or, comp.rightArg);
+          Ast.Source.Expr e3 = new Ast.Source.Expr.UnopApp(Ast.Source.Unop.BoolNot, e1);
+          Ast.Source.Expr e4 = new Ast.Source.Expr.BoolOpApp(e1, Ast.Source.BoolOp.And, e3);
+          return RTLb(e4, Li);
         }
       }
     }
-    return -1;
+    return null;
   }
 
   private static Ast.Target.Dest lookup(String var) {

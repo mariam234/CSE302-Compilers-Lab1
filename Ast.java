@@ -384,8 +384,8 @@ public abstract class Ast {
         this.stmts = stmts;
         this.vars = vars;
 
-        this.typeCheck();
         this.collectInitials();
+        this.typeCheck();
       }
       private void typeCheck() {
         for (Stmt stmt : this.stmts) {
@@ -394,7 +394,7 @@ public abstract class Ast {
       }
       private void collectInitials() {
         List<Stmt> moveStmts = new ArrayList<>();
-        for (Map.Entry<String,VarDecl> varEntry : vars.entrySet())   {
+        for (Map.Entry<String,VarDecl> varEntry : this.vars.entrySet())   {
           Expr initValue = varEntry.getValue().initialValue;
           if (initValue != null) {
             moveStmts.add(new Stmt.Move(new Dest(varEntry.getKey()), initValue));
@@ -623,22 +623,21 @@ public abstract class Ast {
     public static abstract class Instr {
       public abstract String toAmd64();
       public abstract String toRtl();
-      public int inLabel = 0;
+      public int inLabel, outLabel1, outLabel2 = -1;
 
       public static class MoveImm extends Instr {
         public final Dest dest;
         public final int imm;
-        public final int outLabel;
-        public MoveImm(int inLabel, Dest dest, int imm, int outLabel) {
+        public MoveImm(int inLabel, Dest dest, int imm, int outLabel1) {
           this.inLabel = inLabel;
           this.dest = dest;
           this.imm = imm;
-          this.outLabel = outLabel;
+          this.outLabel1 = outLabel1;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: move %d, #%dq --> L%d",
-            this.inLabel, this.imm, this.dest.loc, this.outLabel);
+            this.inLabel, this.imm, this.dest.loc, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -648,17 +647,16 @@ public abstract class Ast {
 
       public static class MoveCp extends Instr {
         public final Dest dest, source;
-        public final int outLabel;
-        public MoveCp(int inLabel, Dest dest, Dest source, int outLabel) {
+        public MoveCp(int inLabel, Dest dest, Dest source, int outLabel1) {
           this.inLabel = inLabel;
           this.dest = dest;
           this.source = source;
-          this.outLabel = outLabel;
+          this.outLabel1 = outLabel1;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: copy #%dq, #%dq --> L%d",
-            this.inLabel, this.source.loc, this.dest.loc, this.outLabel);
+            this.inLabel, this.source.loc, this.dest.loc, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -670,28 +668,27 @@ public abstract class Ast {
       public static class MoveBinop extends Instr {
         public final Dest dest, leftArg, rightArg;
         public final Ast.Source.Binop op;
-        public final int outLabel;
         public MoveBinop(int inLabel, Dest dest, Dest leftArg, Ast.Source.Binop op,
-          Dest rightArg, int outLabel) {
+          Dest rightArg, int outLabel1) {
           this.inLabel = inLabel;
           this.dest = dest;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
           this.op = op;
-          this.outLabel = outLabel;
+          this.outLabel1 = outLabel1;
         }
         // @Override
         // public String toRtl() {
         //   return String.format("L%d: copy #%dq, ## --> L%d\nL%d: binop %s, #%dq, ## --> L%d\nL%d: copy ##, #%dq --> L%d",
         //     this.inLabel, this.leftArg.loc, this.inLabel + 1, this.inLabel + 1,
         //     this.op.toString(), this.rightArg.loc, this.inLabel + 2, this.inLabel + 2,
-        //     this.dest.loc, this.outLabel);
+        //     this.dest.loc, this.outLabel1);
         // }
         @Override
         public String toRtl() {
-          return String.format("L%d: binop %s, #%dq, #%dq, #%dq--> L%d",
+          return String.format("L%d: binop %s, #%dq, #%dq, #%dq --> L%d",
             this.inLabel, this.op.toString(), this.leftArg.loc,
-            this.rightArg.loc, this.dest.loc, this.outLabel);
+            this.rightArg.loc, this.dest.loc, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -726,26 +723,25 @@ public abstract class Ast {
       public static class MoveUnop extends Instr {
         public final Dest dest, arg;
         public final Ast.Source.Unop op;
-        public final int outLabel;
         public MoveUnop(int inLabel, Dest dest, Ast.Source.Unop op, Dest arg,
-          int outLabel) {
+          int outLabel1) {
           this.inLabel = inLabel;
           this.dest = dest;
           this.arg = arg;
           this.op = op;
-          this.outLabel = outLabel;
+          this.outLabel1 = outLabel1;
         }
         // @Override
         // public String toRtl() {
         //   return String.format("L%d: copy #%dq, ## --> L%d\nL%d: unop %s, ## --> L%d\nL%d: copy ##, #%dq --> L%d",
         //     this.inLabel, this.arg.loc, this.inLabel + 1, this.inLabel + 1,
         //     this.op.toString(), this.inLabel + 2, this.inLabel + 2,
-        //     this.dest.loc, this.outLabel);
+        //     this.dest.loc, this.outLabel1);
         // }
         @Override
         public String toRtl() {
           return String.format("L%d: unop %s, #%dq, #%dq --> L%d",
-            this.inLabel, this.op.toString(), this.arg.loc, this.dest.loc, this.outLabel);
+            this.inLabel, this.op.toString(), this.arg.loc, this.dest.loc, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -757,20 +753,19 @@ public abstract class Ast {
       public static class UBranch extends Instr {
         public final Dest arg;
         public final Ast.Source.CompOp op;
-        public final int trueOutLabel, falseOutLabel;
         public UBranch(int inLabel, Ast.Source.CompOp op, Dest arg,
-          int trueOutLabel, int falseOutLabel) {
+          int outLabel1, int outLabel2) {
           this.inLabel = inLabel;
           this.op = op;
           this.arg = arg;
-          this.trueOutLabel = trueOutLabel;
-          this.falseOutLabel = falseOutLabel;
+          this.outLabel1 = outLabel1;
+          this.outLabel2 = outLabel2;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: ubranch %s, #%dq --> L%d, L%d",
-            this.inLabel, op.toString(), arg.loc, this.trueOutLabel,
-            this.falseOutLabel);
+            this.inLabel, op.toString(), arg.loc, this.outLabel1,
+            this.outLabel2);
         }
         @Override
         public String toAmd64() {
@@ -781,21 +776,20 @@ public abstract class Ast {
       public static class BBranch extends Instr {
         public final Dest leftArg, rightArg;
         public final Ast.Source.CompOp op;
-        public final int trueOutLabel, falseOutLabel;
         public BBranch(int inLabel, Dest leftArg, Ast.Source.CompOp op,
-          Dest rightArg, int trueOutLabel, int falseOutLabel) {
+          Dest rightArg, int outLabel1, int outLabel2) {
           this.inLabel = inLabel;
           this.leftArg = leftArg;
           this.rightArg = rightArg;
           this.op = op;
-          this.trueOutLabel = trueOutLabel;
-          this.falseOutLabel = falseOutLabel;
+          this.outLabel1 = outLabel1;
+          this.outLabel2 = outLabel2;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: bbranch %s, #%dq, #%dq --> L%d, L%d",
-            this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.trueOutLabel,
-            this.falseOutLabel);
+            this.inLabel, op.toString(), leftArg.loc, rightArg.loc, this.outLabel1,
+            this.outLabel2);
         }
         @Override
         public String toAmd64() {
@@ -804,14 +798,13 @@ public abstract class Ast {
       }
 
       public static class Goto extends Instr {
-        public final int outLabel;
-        public Goto(int inLabel, int outLabel) {
+        public Goto(int inLabel, int outLabel1) {
           this.inLabel = inLabel;
-          this.outLabel = outLabel;
+          this.outLabel1 = outLabel1;
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: goto --> L%d", this.inLabel, this.outLabel);
+          return String.format("L%d: goto --> L%d", this.inLabel, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -821,21 +814,35 @@ public abstract class Ast {
 
       public static class Print extends Instr {
         public final Dest dest;
-        public final int outLabel;
-        public Print(int inLabel, Dest dest, int outLabel) {
-          this.dest = dest;
+        public Print(int inLabel, Dest dest, int outLabel1) {
           this.inLabel = inLabel;
-          this.outLabel = outLabel;
+          this.dest = dest;
+          this.outLabel1 = outLabel1;
         }
         @Override
         public String toRtl() {
           return String.format("L%d: call bx1_print(#%dq), ## --> L%d",
-            this.inLabel, this.dest.loc, this.outLabel);
+            this.inLabel, this.dest.loc, this.outLabel1);
         }
         @Override
         public String toAmd64() {
           return String.format("movq %s, %%rdi\n\tcallq bx0_print\n",
             getStackSlot(dest));
+        }
+      }
+
+      public static class Return extends Instr {
+        public Return(int inLabel) {
+          this.inLabel = inLabel;
+        }
+        @Override
+        public String toRtl() {
+          return String.format("L%d: move 0, #0q --> L%d\nL%d: return #0q",
+            this.inLabel, this.inLabel + 1, this.inLabel + 1);
+        }
+        @Override
+        public String toAmd64() {
+          return String.format("AMD RETURN");
         }
       }
 
@@ -861,6 +868,16 @@ public abstract class Ast {
       public final List<Instr> instructions;
       public Prog(List<Instr> instructions) {
         this.instructions = instructions;
+      }
+      public void replaceLabels(Map<Integer, Integer> labelChanges) {
+        for (Ast.Target.Instr instr : this.instructions) {
+          if (labelChanges.containsKey(instr.outLabel1)) {
+            instr.outLabel1 = labelChanges.get(instr.outLabel1);
+          }
+          if (labelChanges.containsKey(instr.outLabel2)) {
+            instr.outLabel2 = labelChanges.get(instr.outLabel2);
+          }
+        }
       }
     }
 
