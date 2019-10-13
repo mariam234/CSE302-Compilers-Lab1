@@ -1,3 +1,4 @@
+// should print 4
 var x = true : bool;
 if (x) {
   print 7;

@@ -686,7 +686,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\tmovq %s, %%r11\n\tmovq %%r11, %s",
+          return String.format(".L%d:\n\tmovq %s, %%rax\n\tmovq %%rax, %s",
             this.inLabel, getStackSlot(source), getStackSlot(dest))
             + getJumpStr(this.shouldJump, this.outLabel1);
         }
@@ -708,8 +708,7 @@ public abstract class Ast {
         public String toRtl() {
           return String.format("L%d: binop %s, #%dq, #%dq, <#%dq> --> L%d",
             this.inLabel, this.op.toString(), this.leftArg.loc,
-            this.rightArg.loc, this.dest.loc, this.outLabel1)
-          + getJumpStr(this.shouldJump, this.outLabel1);
+            this.rightArg.loc, this.dest.loc, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -719,9 +718,9 @@ public abstract class Ast {
             case BitAnd:
             case BitOr:
             case BitXor:
-              return String.format(".L%d:\n\tmovq %s, %%r11\n\t%s %s, %%r11\n\tmovq %%r11, %s",
-                this.inLabel, getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
-                getStackSlot(dest))
+              return String.format(".L%d:\n\tmovq %s, %%rdx\n\tmovq %s, %%rax\n\t%s %%rdx, %%rax\n\tmovq %%rax, %s",
+                this.inLabel, getStackSlot(leftArg), getStackSlot(rightArg),
+                op.getInstr(), getStackSlot(dest))
                 + getJumpStr(this.shouldJump, this.outLabel1);
             case Multiply:
               return String.format(".L%d:\n\tmovq %s, %%rax\n\t%s %s\n\tmovq %%rax, %s",
@@ -736,7 +735,7 @@ public abstract class Ast {
                 + getJumpStr(this.shouldJump, this.outLabel1);
             case Lshift:
             case Rshift:
-              return String.format(".L%d:\n\tmovb %s, %%cl\n\tmovq %s, %%r11\n\t%s %%cl, %%r11\n\tmovq %%r11, %s",
+              return String.format(".L%d:\n\tmovb %s, %%cl\n\tmovq %s, %%rax\n\t%s %%cl, %%rax\n\tmovq %%rax, %s",
                 this.inLabel, getStackSlot(rightArg), getStackSlot(leftArg), op.getInstr(),
                 getStackSlot(dest))
                 + getJumpStr(this.shouldJump, this.outLabel1);
@@ -763,7 +762,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\tmovq %s, %%r11\n\t%s %%r11\n\tmovq %%r11, %s",
+          return String.format(".L%d:\n\tmovq %s, %%rax\n\t%s %%rax\n\tmovq %%rax, %s",
             this.inLabel, getStackSlot(arg), op.getInstr(), getStackSlot(dest))
             + getJumpStr(this.shouldJump, this.outLabel1);
         }
@@ -788,8 +787,9 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\t", this.inLabel)
-          + getJumpStr(this.shouldJump, this.outLabel1);
+          return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmp $0, %%rax\n\t%s .L%d",
+            this.inLabel, getStackSlot(this.arg), this.op.getInstr(), this.outLabel1)
+          + getJumpStr(this.shouldJump, this.outLabel2);
         }
       }
 
@@ -813,8 +813,10 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\t", this.inLabel)
-          + getJumpStr(this.shouldJump, this.outLabel1);
+          return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmp %%rax, %s\n\t%s .L%d",
+            this.inLabel, getStackSlot(this.leftArg), getStackSlot(this.rightArg),
+            this.op.getInstr(), this.outLabel1)
+          + getJumpStr(this.shouldJump, this.outLabel2);
         }
       }
 
@@ -829,7 +831,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\t", this.inLabel)
+          return String.format(".L%d:", this.inLabel)
           + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
@@ -843,7 +845,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: call bx1_print(#%dq), ## --> L%d",
+          return String.format("L%d: call bx0_print(#%dq), ## --> L%d",
             this.inLabel, this.dest.loc, this.outLabel1);
         }
         @Override
@@ -866,7 +868,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\tmovq %%rbp, %%rsp\n\tpopq %%rbp\n\tmovq $0, %%rax\n\tretq\n",
+          return String.format(".L%d:\n\tmovq %%rbp, %%rsp\n\tpopq %%rbp\n\tmovq $0, %%rax\n\tretq",
             this.inLabel);
         }
       }
@@ -908,15 +910,34 @@ public abstract class Ast {
         }
       }
       public void removeExtraJumps() {
-        instructions.sort(new Instr.Sorter());
-        for (int i = 0; i < instructions.size(); i++) {
-          Instr instr = instructions.get(i);
-          Instr nextInstr = instructions.get(i);
+        this.instructions.sort(new Instr.Sorter());
+        for (int i = 0; i < this.instructions.size() - 1; i++) {
+          Instr instr = this.instructions.get(i);
+          Instr nextInstr = this.instructions.get(i + 1);
           if (instr.outLabel2 == nextInstr.inLabel
               || (instr.outLabel2 == -1 && instr.outLabel1 == nextInstr.inLabel)) {
-            instructions.get(i).shouldJump = false;
+            this.instructions.get(i).shouldJump = false;
+          }
+          if (!this.instructions.get(i).shouldJump && instr instanceof Instr.Goto) {
+            this.instructions.remove(i);
           }
         }
+      }
+      public String toRtl() {
+        String str = String.format("enter L0\nexit L%d\n----",
+          this.instructions.get(instructions.size() - 1).outLabel1 + 1);
+        for (Ast.Target.Instr instr : this.instructions) {
+          str += instr.toRtl() + "\n";
+        }
+        return str;
+      }
+      public String toAmd64(int varCount) {
+        String str = "\t.section .text\n\t.globl main\nmain:\n\tpushq %rbp\n\tmovq %rsp, %rbp\n";
+        str += String.format("\tsubq $%d, %%rsp\n", varCount * 8);
+        for (Ast.Target.Instr instr : this.instructions) {
+          str += instr.toAmd64() + "\n";
+        }
+        return str;
       }
     }
   }

@@ -1,3 +1,4 @@
+var x, y, z, w, v, u, a, b, c : int64; 
 x = 3;
 y = (x + 2) * (x - 2);
 z = - y;

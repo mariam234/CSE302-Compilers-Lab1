@@ -1,0 +1,7 @@
+// print [false, false, true, false, true]
+var y = false, z = true : bool;
+print (true && y);
+print (false || y);
+print (y || true);
+print (y && false);
+print (z && true);

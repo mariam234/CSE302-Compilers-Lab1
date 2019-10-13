@@ -15,28 +15,17 @@ public class Main {
       if (! bxFile.endsWith(".bx"))
         throw new RuntimeException(String.format("%s does not end in .bx", bxFile));
       Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile);
-      System.out.println(sourceProg.toString());
+      // System.out.println(sourceProg.toString());
       int Lend = RTLstmts(sourceProg.stmts, 0);
       mInstrs.add(new Ast.Target.Instr.Return(Lend));
       mLabelChanges.put(Lend, ++mLabelCounter);
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs, mLabelChanges);
-      System.out.println(String.format("enter L0\nexit L%d\n----", Lend++));
-      for (Ast.Target.Instr instr : targetProg.instructions) {
-        System.out.println(instr.toRtl());
-      }
+      // System.out.println(targetProg.toRtl());
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
       out.println(String.format("\t.file \"%s\"", bxFile));
-      out.println("\t.section .text");
-      out.println("\t.globl main");
-      out.println("main:");
-      out.println("\tpushq %rbp");
-      out.println("\tmovq %rsp, %rbp");
-      out.println(String.format("\tsubq $%d, %%rsp", mVarCounter * 8));
-      for (Ast.Target.Instr instr : targetProg.instructions) {
-        out.println(instr.toAmd64());
-      }
+      out.println(targetProg.toAmd64(mVarCounter /* varCount */));
       out.close();
       String gccCmd = String.format("gcc -no-pie -o %s.exe %s bx0rt.c", stem, amd64File);
       Process gccProc = Runtime.getRuntime().exec(gccCmd);

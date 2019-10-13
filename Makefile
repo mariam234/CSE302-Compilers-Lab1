@@ -13,4 +13,4 @@ Main.class: $(wildcard *.java) BX0.g4
 .PHONY: clean
 clean:
 	rm -f *.class $(filter-out BX0.g4,$(wildcard BX0*))
-	rm -f bx0_tests/*.exe bx0_tests/*.c bx0_tests/*.s bx1_tests/*.exe bx1_tests/*.c bx1_tests/*.s
+	rm -f tests/*.exe tests/*.c tests/*.s

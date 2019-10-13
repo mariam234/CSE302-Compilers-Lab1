@@ -1,3 +1,0 @@
-var y = false : bool;
-print (true && y);
-print (false || y);
