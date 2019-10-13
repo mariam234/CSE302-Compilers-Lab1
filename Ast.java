@@ -625,6 +625,12 @@ public abstract class Ast {
       public abstract String toRtl();
       public int inLabel, outLabel1, outLabel2 = -1;
 
+      public static class Sorter implements Comparator<Instr> {
+        public int compare(Instr instr1, Instr instr2) {
+          return instr1.inLabel - instr2.inLabel;
+        }
+      }
+
       public static class MoveImm extends Instr {
         public final Dest dest;
         public final int imm;
@@ -855,15 +861,18 @@ public abstract class Ast {
       public Prog(List<Instr> instructions) {
         this.instructions = instructions;
       }
+      // replace labels with given mappings and sort instructions
       public void replaceLabels(Map<Integer, Integer> labelChanges) {
-        for (Ast.Target.Instr instr : this.instructions) {
-          if (labelChanges.containsKey(instr.outLabel1)) {
-            instr.outLabel1 = labelChanges.get(instr.outLabel1);
-          }
-          if (labelChanges.containsKey(instr.outLabel2)) {
-            instr.outLabel2 = labelChanges.get(instr.outLabel2);
+        for (Instr instr : this.instructions) {
+          for (Map.Entry<Integer, Integer> labelChange : labelChanges.entrySet())   {
+            int oldLabel = labelChange.getKey();
+            int newLabel = labelChange.getValue();
+            instr.inLabel = instr.inLabel == oldLabel ? newLabel : instr.inLabel;
+            instr.outLabel1 = instr.outLabel1 == oldLabel ? newLabel : instr.outLabel1;
+            instr.outLabel2 = instr.outLabel2 == oldLabel ? newLabel : instr.outLabel2;
           }
         }
+        instructions.sort(new Instr.Sorter());
       }
     }
 

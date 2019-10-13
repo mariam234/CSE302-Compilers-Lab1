@@ -18,9 +18,10 @@ public class Main {
       System.out.println(sourceProg.toString());
       int Lend = RTLstmts(sourceProg.stmts, 0);
       mInstrs.add(new Ast.Target.Instr.Return(Lend));
+      mLabelChanges.put(Lend, ++mLabelCounter);
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
       targetProg.replaceLabels(mLabelChanges);
-      System.out.println(String.format("enter L0\nexit L%d\n----", Lend + 1));
+      System.out.println(String.format("enter L0\nexit L%d\n----", Lend++));
       for (Ast.Target.Instr instr : targetProg.instructions) {
         System.out.println(instr.toRtl());
       }
