@@ -16,12 +16,12 @@ public class Main {
       Ast.Source.Prog sourceProg = Ast.Source.readProgram(bxFile);
       System.out.println(sourceProg.toString());
       RTLstmts(sourceProg.stmts, 0);
-      System.out.println(String.format("enter L0\nexit L%d\n----", mLabelCounter + 2));
+      System.out.println(String.format("enter L0\nexit L%d\n----", mLabelCounter + 1));
       for (Ast.Target.Instr instr : mInstrs) {
         System.out.println(instr.toRtl());
       }
       System.out.println(String.format("L%d: move 0, #0q --> L%d\nL%d: return #0q",
-        mLabelCounter + 1, mLabelCounter + 2, mLabelCounter + 2));
+        mLabelCounter, mLabelCounter + 1, mLabelCounter + 1));
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
@@ -167,19 +167,21 @@ public class Main {
 
   // takes in expr and outlabel; returns inlabel and result dest (bottom-up)
   private static DestLabelPair RTLi(Ast.Source.Expr expr, int Lo) {
-    Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
     if (expr instanceof Ast.Source.Expr.IntImm) {
       Ast.Source.Expr.IntImm intImm = (Ast.Source.Expr.IntImm) expr;
+      Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
       mInstrs.add(new Ast.Target.Instr.MoveImm(mLabelCounter++, dest, intImm.value, Lo));
       return new DestLabelPair(dest, mLabelCounter);
     }
     else if (expr instanceof Ast.Source.Expr.Read) {
       Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
-      mInstrs.add(new Ast.Target.Instr.MoveCp(mLabelCounter++, lookup(read.dest.var), dest, Lo));
+      Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
+      mInstrs.add(new Ast.Target.Instr.MoveCp(mLabelCounter++, dest, lookup(read.dest.var), Lo));
       return new DestLabelPair(dest, mLabelCounter);
     }
     else if (expr instanceof Ast.Source.Expr.UnopApp) {
       Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
+      Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
       int L1 = mLabelCounter++;
       DestLabelPair argRes = RTLi(unopApp.arg, L1);
       mInstrs.add(new Ast.Target.Instr.MoveUnop(L1, dest, unopApp.op, argRes.dest, Lo));
@@ -187,6 +189,7 @@ public class Main {
     }
     else if (expr instanceof Ast.Source.Expr.BinopApp) {
       Ast.Source.Expr.BinopApp binopApp = (Ast.Source.Expr.BinopApp) expr;
+      Ast.Target.Dest dest = new Ast.Target.Dest(mVarCounter++);
       int L1 = mLabelCounter++;
       DestLabelPair rightRes = RTLi(binopApp.rightArg, L1);
       DestLabelPair leftRes = RTLi(binopApp.leftArg, rightRes.inLabel);
