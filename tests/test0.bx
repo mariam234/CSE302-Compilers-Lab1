@@ -6,3 +6,4 @@ while (x < 200) {
   x = y;
   y = y + z;
 }
+print true;

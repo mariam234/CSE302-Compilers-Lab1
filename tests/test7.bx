@@ -1,0 +1,7 @@
+// prints 10
+var x = 10 : int64;
+if (x < 20) {
+  print 10;
+} else {
+  print 20;
+}

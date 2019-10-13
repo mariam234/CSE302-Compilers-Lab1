@@ -706,7 +706,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: binop %s, #%dq, #%dq, <#%dq> --> L%d",
+          return String.format("L%d: binop %s, #%dq, #%dq, [#%dq] --> L%d",
             this.inLabel, this.op.toString(), this.leftArg.loc,
             this.rightArg.loc, this.dest.loc, this.outLabel1);
         }
@@ -757,7 +757,7 @@ public abstract class Ast {
         }
         @Override
         public String toRtl() {
-          return String.format("L%d: unop %s, #%dq, <#%dq> --> L%d",
+          return String.format("L%d: unop %s, #%dq, [#%dq] --> L%d",
             this.inLabel, this.op.toString(), this.arg.loc, this.dest.loc, this.outLabel1);
         }
         @Override
@@ -787,7 +787,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmp $0, %%rax\n\t%s .L%d",
+          return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmpq $0, %%rax\n\t%s .L%d",
             this.inLabel, getStackSlot(this.arg), this.op.getInstr(), this.outLabel1)
           + getJumpStr(this.shouldJump, this.outLabel2);
         }
@@ -813,7 +813,7 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmp %%rax, %s\n\t%s .L%d",
+          return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmpq %%rax, %s\n\t%s .L%d",
             this.inLabel, getStackSlot(this.leftArg), getStackSlot(this.rightArg),
             this.op.getInstr(), this.outLabel1)
           + getJumpStr(this.shouldJump, this.outLabel2);
@@ -924,7 +924,7 @@ public abstract class Ast {
         }
       }
       public String toRtl() {
-        String str = String.format("enter L0\nexit L%d\n----",
+        String str = String.format("enter L0\nexit L%d\n----\n",
           this.instructions.get(instructions.size() - 1).outLabel1 + 1);
         for (Ast.Target.Instr instr : this.instructions) {
           str += instr.toRtl() + "\n";

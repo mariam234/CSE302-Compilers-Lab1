@@ -1,13 +1,11 @@
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 public class Main {
   private static int mVarCounter = 0;
   private static int mLabelCounter = 0;
   private static HashMap<String, Ast.Target.Dest> mVars = new HashMap<>();
-  private static HashMap<Integer, Integer> mLabelChanges = new HashMap<>();
+  private static HashMap<Integer, Integer> mLabelChanges = new LinkedHashMap<>();
   private static List<Ast.Target.Instr> mInstrs = new ArrayList<>();
 
   public static void main(String[] args) throws Exception {
@@ -20,7 +18,7 @@ public class Main {
       mInstrs.add(new Ast.Target.Instr.Return(Lend));
       mLabelChanges.put(Lend, ++mLabelCounter);
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs, mLabelChanges);
-      // System.out.println(targetProg.toRtl());
+      System.out.println(targetProg.toRtl());
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
