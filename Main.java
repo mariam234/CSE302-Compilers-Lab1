@@ -19,8 +19,7 @@ public class Main {
       int Lend = RTLstmts(sourceProg.stmts, 0);
       mInstrs.add(new Ast.Target.Instr.Return(Lend));
       mLabelChanges.put(Lend, ++mLabelCounter);
-      Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs);
-      targetProg.replaceLabels(mLabelChanges);
+      Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs, mLabelChanges);
       System.out.println(String.format("enter L0\nexit L%d\n----", Lend++));
       for (Ast.Target.Instr instr : targetProg.instructions) {
         System.out.println(instr.toRtl());
@@ -34,14 +33,10 @@ public class Main {
       out.println("main:");
       out.println("\tpushq %rbp");
       out.println("\tmovq %rsp, %rbp");
-      out.println(String.format("\tsubq $%d, %%rsp\n", mVarCounter * 8));
+      out.println(String.format("\tsubq $%d, %%rsp", mVarCounter * 8));
       for (Ast.Target.Instr instr : targetProg.instructions) {
-        out.println("\t" + instr.toAmd64());
+        out.println(instr.toAmd64());
       }
-      out.println("\tmovq %rbp, %rsp");
-      out.println("\tpopq %rbp");
-      out.println("\tmovq $0, %rax");
-      out.println("\tretq");
       out.close();
       String gccCmd = String.format("gcc -no-pie -o %s.exe %s bx0rt.c", stem, amd64File);
       Process gccProc = Runtime.getRuntime().exec(gccCmd);
