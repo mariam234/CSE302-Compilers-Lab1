@@ -677,16 +677,9 @@ public abstract class Ast {
           this.op = op;
           this.outLabel1 = outLabel1;
         }
-        // @Override
-        // public String toRtl() {
-        //   return String.format("L%d: copy #%dq, ## --> L%d\nL%d: binop %s, #%dq, ## --> L%d\nL%d: copy ##, #%dq --> L%d",
-        //     this.inLabel, this.leftArg.loc, this.inLabel + 1, this.inLabel + 1,
-        //     this.op.toString(), this.rightArg.loc, this.inLabel + 2, this.inLabel + 2,
-        //     this.dest.loc, this.outLabel1);
-        // }
         @Override
         public String toRtl() {
-          return String.format("L%d: binop %s, #%dq, #%dq, #%dq --> L%d",
+          return String.format("L%d: binop %s, #%dq, #%dq, <#%dq> --> L%d",
             this.inLabel, this.op.toString(), this.leftArg.loc,
             this.rightArg.loc, this.dest.loc, this.outLabel1);
         }
@@ -731,16 +724,9 @@ public abstract class Ast {
           this.op = op;
           this.outLabel1 = outLabel1;
         }
-        // @Override
-        // public String toRtl() {
-        //   return String.format("L%d: copy #%dq, ## --> L%d\nL%d: unop %s, ## --> L%d\nL%d: copy ##, #%dq --> L%d",
-        //     this.inLabel, this.arg.loc, this.inLabel + 1, this.inLabel + 1,
-        //     this.op.toString(), this.inLabel + 2, this.inLabel + 2,
-        //     this.dest.loc, this.outLabel1);
-        // }
         @Override
         public String toRtl() {
-          return String.format("L%d: unop %s, #%dq, #%dq --> L%d",
+          return String.format("L%d: unop %s, #%dq, <#%dq> --> L%d",
             this.inLabel, this.op.toString(), this.arg.loc, this.dest.loc, this.outLabel1);
         }
         @Override

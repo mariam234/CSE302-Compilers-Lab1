@@ -48,44 +48,7 @@ public class Main {
     }
   }
 
-  // private static void generateInstructions(Ast.Source.Prog progSource) {
-  //   for (Ast.Source.Stmt stmt : progSource.stmts) {
-  //     if (stmt instanceof Ast.Source.Stmt.Move) {
-  //       Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
-  //       mVars.put(move.dest.var, genInstrsFromExpr(move.source));
-  //     } else if (stmt instanceof Ast.Source.Stmt.Print) {
-  //       Ast.Source.Stmt.Print print = (Ast.Source.Stmt.Print) stmt;
-  //       mInstrs.add(new Ast.Target.Instr.Print(genInstrsFromExpr(print.arg)));
-  //     }
-  //   }
-  // }
-  //
-  // // helper function for generateInstructions
-  // private static Ast.Target.Dest genInstrsFromExpr(Ast.Source.Expr expr) {
-  //   Ast.Target.Dest dest = null;
-  //   if (expr instanceof Ast.Source.Expr.IntImm) {
-  //     Ast.Source.Expr.IntImm imm = (Ast.Source.Expr.IntImm) expr;
-  //     dest = new Ast.Target.Dest(mVarCounter++);
-  //     mInstrs.add(new Ast.Target.Instr.MoveImm(dest, imm.value));
-  //   } else if (expr instanceof Ast.Source.Expr.Read) {
-  //     Ast.Source.Expr.Read read = (Ast.Source.Expr.Read) expr;
-  //     dest = mVars.get(read.dest.var);
-  //   } else if (expr instanceof Ast.Source.Expr.UnopApp) {
-  //     Ast.Source.Expr.UnopApp unopApp = (Ast.Source.Expr.UnopApp) expr;
-  //     Ast.Target.Dest argDest = genInstrsFromExpr(unopApp.arg);
-  //     dest = new Ast.Target.Dest(mVarCounter++);
-  //     mInstrs.add(new Ast.Target.Instr.MoveUnop(dest, unopApp.op, argDest));
-  //   } else if (expr instanceof Ast.Source.Expr.BinopApp) {
-  //     Ast.Source.Expr.BinopApp binopApp = (Ast.Source.Expr.BinopApp) expr;
-  //     Ast.Target.Dest leftDest = genInstrsFromExpr(binopApp.leftArg);
-  //     Ast.Target.Dest rightDest = genInstrsFromExpr(binopApp.rightArg);
-  //     dest = new Ast.Target.Dest(mVarCounter++);
-  //     mInstrs.add(new Ast.Target.Instr.MoveBinop(
-  //       dest, leftDest, binopApp.op, rightDest));
-  //   }
-  //   return dest;
-  // }
-
+  // return type for RTLi containing dest where calculation was stored and outlabel
   private static class DestLabelPair {
     public Ast.Target.Dest dest;
     public int outLabel;
@@ -95,6 +58,7 @@ public class Main {
     }
   }
 
+  // return type for RTLb containing true and false outlabels
   private static class TrueFalseLabels {
     public int trueLabel;
     public int falseLabel;
@@ -118,7 +82,7 @@ public class Main {
    return Lo;
   }
 
-  // returns out label
+  // RTL for a statement. returns outlabel
   private static int RTLs(Ast.Source.Stmt stmt, int Li) {
     if (stmt instanceof Ast.Source.Stmt.Move) {
       Ast.Source.Stmt.Move move = (Ast.Source.Stmt.Move) stmt;
@@ -195,7 +159,7 @@ public class Main {
     return -1;
   }
 
-  // takes in expr and inlabel; returns result dest and outLabel (bottom-up)
+  // RTL for int exprs. takes in expr and inlabel; returns destLabel (bottom-up)
   private static DestLabelPair RTLi(Ast.Source.Expr expr, int Li) {
     if (expr instanceof Ast.Source.Expr.IntImm) {
       Ast.Source.Expr.IntImm intImm = (Ast.Source.Expr.IntImm) expr;
@@ -230,7 +194,7 @@ public class Main {
     return null;
   }
 
-  // takes in expr and inlabel; returns true and false outLabels (bottom-up)
+  // RTL for bool exprs. takes in expr and inlabel; returns true and false outLabels (bottom-up)
   private static TrueFalseLabels RTLb(Ast.Source.Expr expr, int Li) {
     if (expr instanceof Ast.Source.Expr.BoolImm) {
       Ast.Source.Expr.BoolImm boolImm = (Ast.Source.Expr.BoolImm) expr;
