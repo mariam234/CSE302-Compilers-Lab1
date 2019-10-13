@@ -66,6 +66,17 @@ public abstract class Ast {
 
     public static enum CompOp {
       Eq, Neq, Lt, Leq, Gt, Geq;
+      public String getInstr() {
+        switch(this) {
+          case Eq: return "je";
+          case Neq: return "jne";
+          case Lt: return "jl";
+          case Leq: return "jle";
+          case Gt: return "jg";
+          case Geq: return "jge";
+          default: throw new IllegalArgumentException();
+        }
+      }
     }
 
     public static abstract class Expr {
@@ -629,7 +640,7 @@ public abstract class Ast {
         return dest.loc == 0 ? "(%rsp)" : (dest.loc * 8) + "(%rsp)";
       }
       private static String getJumpStr(boolean shouldJump, int outLabel) {
-        return shouldJump ? String.format("\n\tjmp .L%d\n", outLabel) : "";
+        return shouldJump ? String.format("\n\tjmp .L%d", outLabel) : "";
       }
 
       public static class Sorter implements Comparator<Instr> {
@@ -655,7 +666,8 @@ public abstract class Ast {
         @Override
         public String toAmd64() {
           return String.format(".L%d:\n\tmovq $%d, %s",
-            this.inLabel, this.imm, getStackSlot(dest));
+            this.inLabel, this.imm, getStackSlot(dest))
+            + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
@@ -675,7 +687,8 @@ public abstract class Ast {
         @Override
         public String toAmd64() {
           return String.format(".L%d:\n\tmovq %s, %%r11\n\tmovq %%r11, %s",
-            this.inLabel, getStackSlot(source), getStackSlot(dest));
+            this.inLabel, getStackSlot(source), getStackSlot(dest))
+            + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
@@ -695,7 +708,8 @@ public abstract class Ast {
         public String toRtl() {
           return String.format("L%d: binop %s, #%dq, #%dq, <#%dq> --> L%d",
             this.inLabel, this.op.toString(), this.leftArg.loc,
-            this.rightArg.loc, this.dest.loc, this.outLabel1);
+            this.rightArg.loc, this.dest.loc, this.outLabel1)
+          + getJumpStr(this.shouldJump, this.outLabel1);
         }
         @Override
         public String toAmd64() {
@@ -707,21 +721,25 @@ public abstract class Ast {
             case BitXor:
               return String.format(".L%d:\n\tmovq %s, %%r11\n\t%s %s, %%r11\n\tmovq %%r11, %s",
                 this.inLabel, getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
-                getStackSlot(dest));
+                getStackSlot(dest))
+                + getJumpStr(this.shouldJump, this.outLabel1);
             case Multiply:
               return String.format(".L%d:\n\tmovq %s, %%rax\n\t%s %s\n\tmovq %%rax, %s",
                 this.inLabel, getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
-                getStackSlot(dest));
+                getStackSlot(dest))
+                + getJumpStr(this.shouldJump, this.outLabel1);
             case Divide:
             case Modulus:
               return String.format(".L%d:\n\tmovq %s, %%rax\n\tcqto\n\t%s %s\n\tmovq %s, %s",
                 this.inLabel, getStackSlot(leftArg), op.getInstr(), getStackSlot(rightArg),
-                op == Ast.Source.Binop.Divide ? "%rax" : "%rdx", getStackSlot(dest));
+                op == Ast.Source.Binop.Divide ? "%rax" : "%rdx", getStackSlot(dest))
+                + getJumpStr(this.shouldJump, this.outLabel1);
             case Lshift:
             case Rshift:
               return String.format(".L%d:\n\tmovb %s, %%cl\n\tmovq %s, %%r11\n\t%s %%cl, %%r11\n\tmovq %%r11, %s",
                 this.inLabel, getStackSlot(rightArg), getStackSlot(leftArg), op.getInstr(),
-                getStackSlot(dest));
+                getStackSlot(dest))
+                + getJumpStr(this.shouldJump, this.outLabel1);
             default: throw new IllegalArgumentException();
           }
         }
@@ -746,7 +764,8 @@ public abstract class Ast {
         @Override
         public String toAmd64() {
           return String.format(".L%d:\n\tmovq %s, %%r11\n\t%s %%r11\n\tmovq %%r11, %s",
-            this.inLabel, getStackSlot(arg), op.getInstr(), getStackSlot(dest));
+            this.inLabel, getStackSlot(arg), op.getInstr(), getStackSlot(dest))
+            + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
@@ -769,7 +788,8 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\t", this.inLabel);
+          return String.format(".L%d:\n\t", this.inLabel)
+          + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
@@ -793,7 +813,8 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\t", this.inLabel);
+          return String.format(".L%d:\n\t", this.inLabel)
+          + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
@@ -808,7 +829,8 @@ public abstract class Ast {
         }
         @Override
         public String toAmd64() {
-          return String.format(".L%d:\n\t", this.inLabel);
+          return String.format(".L%d:\n\t", this.inLabel)
+          + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
@@ -827,8 +849,9 @@ public abstract class Ast {
         @Override
         public String toAmd64() {
           String jumpStr = getJumpStr(shouldJump, outLabel1);
-          return String.format(".L%d:\n\tmovq %s, %%rdi\n\tcallq bx0_print\n%s",
-            this.inLabel, getStackSlot(dest), jumpStr);
+          return String.format(".L%d:\n\tmovq %s, %%rdi\n\tcallq bx0_print",
+            this.inLabel, getStackSlot(dest))
+            + getJumpStr(this.shouldJump, this.outLabel1);
         }
       }
 
