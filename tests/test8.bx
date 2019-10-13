@@ -1,0 +1,8 @@
+// should print 1 0 0 1
+var x = true, y = true : bool;
+while (x) {
+  x = y;
+  y = !(x && y);
+  print x;
+  print y;
+}

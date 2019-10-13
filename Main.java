@@ -18,7 +18,7 @@ public class Main {
       mInstrs.add(new Ast.Target.Instr.Return(Lend));
       mLabelChanges.put(Lend, ++mLabelCounter);
       Ast.Target.Prog targetProg = new Ast.Target.Prog(mInstrs, mLabelChanges);
-      System.out.println(targetProg.toRtl());
+      // System.out.println(targetProg.toRtl());
       String stem = bxFile.substring(0, bxFile.length() - 3);
       String amd64File = stem + ".s";
       PrintStream out = new PrintStream(amd64File);
@@ -83,6 +83,7 @@ public class Main {
         mInstrs.add(new Ast.Target.Instr.MoveImm(res.falseLabel, sourceDest, 0, Lo));
       }
       Ast.Target.Dest targetDest = mVars.get(move.dest.var);
+      // check if new mapping needs to be created/if copy needs to be done
       if (targetDest == null && mVars.containsValue(sourceDest)) {
         Ast.Target.Dest freshDest = new Ast.Target.Dest(mVarCounter++);
         mVars.put(move.dest.var, freshDest);

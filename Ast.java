@@ -814,7 +814,7 @@ public abstract class Ast {
         @Override
         public String toAmd64() {
           return String.format(".L%d:\n\tmovq %s, %%rax\n\tcmpq %%rax, %s\n\t%s .L%d",
-            this.inLabel, getStackSlot(this.leftArg), getStackSlot(this.rightArg),
+            this.inLabel, getStackSlot(this.rightArg), getStackSlot(this.leftArg),
             this.op.getInstr(), this.outLabel1)
           + getJumpStr(this.shouldJump, this.outLabel2);
         }
