@@ -165,11 +165,9 @@ public class Main {
     }
     else if (stmt instanceof Ast.Source.Stmt.While) {
       Ast.Source.Stmt.While whileStmt = (Ast.Source.Stmt.While) stmt;
-      System.out.println(Li);
       TrueFalseLabels res = RTLb(whileStmt.condition, Li);
       int Lo = RTLstmts(whileStmt.body, res.trueLabel);
       mInstrs.add(new Ast.Target.Instr.Goto(Lo, Li));
-      System.out.println(Lo + " " + Li);
       return res.falseLabel;
     }
     else if (stmt instanceof Ast.Source.Stmt.Block) {
